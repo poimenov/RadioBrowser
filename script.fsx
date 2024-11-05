@@ -20,15 +20,17 @@ open Avalonia.Data
 open Avalonia.Layout
 open System.IO
 open FSharp.Data
+open FSharp.Data.JsonExtensions
 open System
 
-type Track(id, title, artistId, artist, duration, downloadUrl) =
+type Track(id, title, artistId, artist, duration, downloadUrl, href) =
     member val Id = id with get, set
     member val Title = title with get, set
     member val Artist = artist with get, set
     member val ArtistId = artistId with get, set
     member val Duration = duration with get, set
     member val DownloadUrl = downloadUrl with get, set
+    member val Href = false with get, set
 
 [<AbstractClass; Sealed>]
 type Views =
@@ -42,39 +44,40 @@ type Views =
             let searchText = ctx.useState ""
             let baseUri = new Uri("https://m.z3.fm")
 
-            let getAsyncHtmlPage (url: string) =
-                async { return! HtmlDocument.AsyncLoad(url) }
+            let getAsyncSearch (keyword) =
+                async {
+                    let uri = new Uri(baseUri, "mp3/search")
+                    let query = [ "keywords", keyword ]
 
-            let getHtmlItems (page: HtmlDocument) =
-                page.Descendants [ "li" ]
-                |> Seq.filter (fun x -> x.AttributeValue("class") = "tracks-item")
+                    let headers =
+                        [ HttpRequestHeaders.Accept "application/json"
+                          "x-requested-with", "XMLHttpRequest" ]
 
-            let getTrack (htmlItem: HtmlNode) =
-                let id = htmlItem.AttributeValue("data-id")
-                let title = htmlItem.AttributeValue("data-title")
-                let artistId = htmlItem.AttributeValue("data-artist-id")
-                let artist = htmlItem.AttributeValue("data-artist")
+                    let! text =
+                        Http.AsyncRequestString(uri.AbsoluteUri, httpMethod = "GET", query = query, headers = headers)
 
-                let duration =
-                    htmlItem.Descendants [ "div" ]
-                    |> Seq.filter (fun x -> x.AttributeValue("class") = "tracks-time")
-                    |> Seq.head
-                    |> fun x -> x.InnerText()
+                    return text
+                }
 
-                let downloadUrl = "/download/" + id
-                Track(id, title, artistId, artist, duration, downloadUrl)
+            let GetTrack (jsonVal) =
+                let id = jsonVal?id.AsInteger()
+                let title = jsonVal?title.AsString()
+                let artistId = jsonVal?artist_id.AsInteger()
+                let artist = jsonVal?artist.AsString()
+                let t = TimeSpan.FromSeconds(jsonVal?duration.AsInteger())
+                let duration = String.Format("{0:D2}:{1:D2}", t.Minutes, t.Seconds)
+                let href = jsonVal?href.AsString()
+                let downloadUrl = "/download/" + id.ToString()
+                Track(id, title, artistId, artist, duration, downloadUrl, href)
 
             let doSearch =
                 async {
-                    let uri = new Uri(baseUri, "mp3/search?keywords=" + searchText.Current)
                     searchButtonEnabled.Set(false)
 
                     try
-                        let! page = getAsyncHtmlPage (uri.AbsoluteUri)
-
-                        let tracks =
-                            getHtmlItems page |> Seq.map getTrack |> Seq.toList |> ObservableCollection
-
+                        let! text = getAsyncSearch (searchText.Current)
+                        let arrJson = JsonValue.Parse(text).AsArray()
+                        let tracks = arrJson |> Seq.map GetTrack |> Seq.toList |> ObservableCollection
                         data.Set(tracks)
                     with ex ->
                         printfn "%A" ex
