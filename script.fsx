@@ -22,6 +22,7 @@ open System.IO
 open FSharp.Data
 open FSharp.Data.JsonExtensions
 open System
+open Avalonia.Input
 
 type Track(id, title, artistId, artist, duration, downloadUrl, href) =
     member val Id = id with get, set
@@ -124,6 +125,9 @@ type Views =
                                         [ TextBox.margin 4
                                           TextBox.watermark "Search music"
                                           TextBox.width 600
+                                          TextBox.onKeyDown (fun e ->
+                                              if e.Key = Key.Enter then
+                                                  Async.StartImmediate doSearch)
                                           TextBox.onTextChanged (fun e -> searchText.Set(e)) ]
                                     Button.create
                                         [ Button.content "Search"
