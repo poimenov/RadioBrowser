@@ -5,6 +5,7 @@
 #r "nuget: Avalonia.Themes.Fluent"
 #r "nuget: Avalonia.FuncUI"
 #r "nuget: FSharp.Data"
+#r "nuget: LibVLCSharp"
 
 #endif
 
@@ -23,6 +24,7 @@ open FSharp.Data
 open FSharp.Data.JsonExtensions
 open System
 open Avalonia.Input
+open LibVLCSharp.Shared
 
 type Track(id, title, artistId, artist, duration, downloadUrl, href) =
     member val Id = id with get, set
@@ -42,7 +44,22 @@ type Views =
             let selectedItem = ctx.useState<Option<Track>> None
             let searchButtonEnabled = ctx.useState true
             let downloadButtonEnabled = ctx.useState true
+            let playEnabled = ctx.useState true
+            let isPlaying = ctx.useState false
             let searchText = ctx.useState ""
+            let libVlc = ctx.useState (new LibVLC())
+
+            let getPlayer =
+                let _player = new MediaPlayer(libVlc.Current)
+
+                _player.EndReached.Add(fun _ ->
+                    isPlaying.Set(false)
+                    _player.Media.Dispose()
+                    _player.Media <- null)
+
+                _player
+
+            let player = ctx.useState (getPlayer)
             let baseUri = new Uri("https://m.z3.fm")
 
             let getAsyncSearch (keyword) =
@@ -60,7 +77,7 @@ type Views =
                     return text
                 }
 
-            let GetTrack (jsonVal) =
+            let getTrack (jsonVal) =
                 let id = jsonVal?id.AsInteger()
                 let title = jsonVal?title.AsString()
                 let artistId = jsonVal?artist_id.AsInteger()
@@ -78,7 +95,7 @@ type Views =
                     try
                         let! text = getAsyncSearch (searchText.Current)
                         let arrJson = JsonValue.Parse(text).AsArray()
-                        let tracks = arrJson |> Seq.map GetTrack |> Seq.toList |> ObservableCollection
+                        let tracks = arrJson |> Seq.map getTrack |> Seq.toList |> ObservableCollection
                         data.Set(tracks)
                     with ex ->
                         printfn "%A" ex
@@ -114,6 +131,35 @@ type Views =
                         downloadButtonEnabled.Set(true)
                 }
 
+            let play =
+                async {
+                    match selectedItem.Current with
+                    | None -> ()
+                    | Some track ->
+                        let uri = new Uri(baseUri, track.DownloadUrl)
+                        playEnabled.Set(false)
+
+                        try
+                            let! inputStream = Http.AsyncRequestStream(uri.AbsoluteUri)
+                            let memoryStream = new MemoryStream()
+                            inputStream.ResponseStream.CopyTo(memoryStream)
+                            player.Current.Media <- new Media(libVlc.Current, new StreamMediaInput(memoryStream))
+                            isPlaying.Set(player.Current.Play())
+                        with ex ->
+                            printfn "%A" ex
+
+                        playEnabled.Set(true)
+                }
+
+            let playStop =
+                async {
+                    if isPlaying.Current then
+                        player.Current.Stop()
+                        isPlaying.Set(false)
+                    else
+                        play |> Async.Start
+                }
+
             DockPanel.create
                 [ DockPanel.children
                       [ StackPanel.create
@@ -124,7 +170,7 @@ type Views =
                                   [ TextBox.create
                                         [ TextBox.margin 4
                                           TextBox.watermark "Search music"
-                                          TextBox.width 600
+                                          TextBox.width 510
                                           TextBox.onKeyDown (fun e ->
                                               if e.Key = Key.Enter then
                                                   Async.StartImmediate doSearch)
@@ -132,9 +178,18 @@ type Views =
                                     Button.create
                                         [ Button.content "Search"
                                           Button.width 90
-                                          Button.isEnabled searchButtonEnabled.Current
+                                          Button.isEnabled (
+                                              searchButtonEnabled.Current
+                                              && not (String.IsNullOrWhiteSpace(searchText.Current))
+                                          )
                                           Button.horizontalContentAlignment HorizontalAlignment.Center
                                           Button.onClick (fun _ -> Async.StartImmediate doSearch) ]
+                                    Button.create
+                                        [ Button.content (if isPlaying.Current then "Stop" else "Play")
+                                          Button.width 90
+                                          Button.isEnabled (selectedItem.Current.IsSome && playEnabled.Current)
+                                          Button.horizontalContentAlignment HorizontalAlignment.Center
+                                          Button.onClick (fun _ -> Async.StartImmediate playStop) ]
                                     Button.create
                                         [ Button.content "Download"
                                           Button.width 90
