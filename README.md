@@ -1,10 +1,14 @@
 # MusicSearchDownload
 
+Script for searching and downloading music from z3.fm (sript.fsx)
 ![Screenshot of the script UI](/img/screen.jpg)
+
+Script for searching and downloading music from youtube (fromYoutube.fsx)
+![Screenshot of the script UI](/img/screen1.jpg)
 
 ## Description
 
-Script for searching and downloading music from z3.fm
+Scripts for searching and downloading music
 
 ### Prerequisites
 
