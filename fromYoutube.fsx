@@ -135,7 +135,7 @@ type Views =
                               StackPanel.children
                                   [ TextBox.create
                                         [ TextBox.margin 4
-                                          TextBox.watermark "YouTube video URL"
+                                          TextBox.watermark "Search music"
                                           TextBox.width 700
                                           TextBox.onKeyDown (fun e ->
                                               if e.Key = Key.Enter then

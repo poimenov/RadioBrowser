@@ -14,6 +14,8 @@ Scripts for searching and downloading music
 
 .Net SDK 
 
+FFMpeg
+
 ### Installation
 
 Clone the repo:
