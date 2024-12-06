@@ -31,19 +31,6 @@ open SpotifyExplode.Search
 open System.Text.RegularExpressions
 open LibVLCSharp.Shared
 open Avalonia.Media
-open Avalonia.Media.Imaging
-
-// [<AutoOpen>]
-// module WindowIcon =
-//     open Avalonia.FuncUI.Types
-//     open Avalonia.FuncUI.Builder
-
-//     let create (attrs: IAttr<WindowIcon> list) : IView<WindowIcon> = ViewBuilder.Create<WindowIcon>(attrs)
-
-//     // type WindowIcon with
-//     //     static member icon<'t when 't :> WindowIcon>(value: string) : IAttr<'t> =
-//     //         AttrBuilder<'t>
-//     //             .CreateProperty<string>(WindowIcon.icon, value, ValueNone)
 
 [<AutoOpen>]
 module SymbolIcon =
