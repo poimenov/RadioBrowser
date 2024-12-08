@@ -6,6 +6,9 @@ Script for searching and downloading music from z3.fm (sript.fsx)
 Script for searching and downloading music from youtube (fromYoutube.fsx)
 ![Screenshot of the script UI](/img/screen1.jpg)
 
+Script for searching and downloading music from spotify (fromSpotify.fsx)
+![Screenshot of the script UI](/img/screen2.jpg)
+
 ## Description
 
 Scripts for searching and downloading music
