@@ -4,10 +4,9 @@
 #r "nuget: Avalonia.Desktop"
 #r "nuget: Avalonia.Themes.Fluent"
 #r "nuget: Avalonia.FuncUI"
-#r "nuget: FSharp.Data"
 #r "nuget: FluentIcons.Avalonia"
-#r "nuget: SpotifyExplode"
 #r "nuget: LibVLCSharp"
+#r "nuget: RadioBrowser"
 #r "nuget: AsyncImageLoader.Avalonia"
 
 #endif
@@ -24,12 +23,11 @@ open FluentIcons.Avalonia
 open System.Collections.ObjectModel
 open Avalonia.Input
 open FSharp.Control
-open FSharp.Data
 open AsyncImageLoader
-open SpotifyExplode
-open SpotifyExplode.Search
-open System.Text.RegularExpressions
 open LibVLCSharp.Shared
+open RadioBrowser
+open RadioBrowser.Models
+open Avalonia.Media.Imaging
 open Avalonia.Media
 
 [<AutoOpen>]
@@ -45,17 +43,48 @@ module SymbolIcon =
             AttrBuilder<'t>
                 .CreateProperty<Symbol>(SymbolIcon.SymbolProperty, value, ValueNone)
 
+[<AutoOpen>]
+module HyperlinkButton =
+    open Avalonia.FuncUI.Types
+    open Avalonia.FuncUI.Builder
+
+    let create (attrs: IAttr<HyperlinkButton> list) : IView<HyperlinkButton> =
+        ViewBuilder.Create<HyperlinkButton>(attrs)
 
 [<AbstractClass; Sealed>]
 type Views =
 
     static member main() =
         Component(fun ctx ->
-            let data = ctx.useState (ObservableCollection<TrackSearchResult>([]))
-            let selectedItem = ctx.useState<Option<TrackSearchResult>> None
+            let limit = 100u
+
+            let getDefaultStations =
+                async {
+                    let client = RadioBrowserClient()
+                    return! client.Stations.GetByVotesAsync(limit) |> Async.AwaitTask
+                }
+
+            let items =
+                ctx.useState (ObservableCollection<StationInfo>(getDefaultStations |> Async.RunSynchronously))
+
+            let getCountries =
+                async {
+                    let client = RadioBrowserClient()
+                    let! result = client.Lists.GetCountriesAsync() |> Async.AwaitTask
+                    let empty = new NameAndCount()
+                    empty.Name <- ""
+                    empty.Stationcount <- 0u
+                    result.Insert(0, empty)
+                    return result
+                }
+
+            let countries =
+                ctx.useState (ObservableCollection<NameAndCount>(getCountries |> Async.RunSynchronously))
+
+            let selectedItem = ctx.useState<Option<StationInfo>> None
+            let selectedCountry = ctx.useState<Option<NameAndCount>> None
             let searchButtonEnabled = ctx.useState true
-            let downloadButtonEnabled = ctx.useState true
-            let playEnabled = ctx.useState true
+            let playEnabled = ctx.useState false
             let isPlaying = ctx.useState false
             let searchText = ctx.useState ""
             let libVlc = ctx.useState (new LibVLC())
@@ -77,51 +106,35 @@ type Views =
                     searchButtonEnabled.Set(false)
 
                     try
-                        data.Current.Clear()
-                        let client = SpotifyClient()
+                        items.Current.Clear()
+                        let client = RadioBrowserClient()
 
-                        let! results = client.Search.GetTracksAsync(searchText.Current).AsTask() |> Async.AwaitTask
+                        let options =
+                            let opt = new AdvancedSearchOptions()
+                            opt.Limit <- limit
+                            opt.Offset <- 0u
 
-                        results |> Seq.iter (fun x -> data.Current.Add(x))
+                            if not (String.IsNullOrEmpty(searchText.Current)) then
+                                opt.Name <- searchText.Current
+
+                            if
+                                selectedCountry.Current.IsSome
+                                && selectedCountry.Current.Value.Stationcount > 0u
+                            then
+                                opt.Country <- selectedCountry.Current.Value.Name
+
+                            opt
+
+                        let! results = client.Search.AdvancedAsync(options) |> Async.AwaitTask
+
+                        results |> Seq.iter (fun x -> items.Current.Add(x))
                     with ex ->
                         printfn "%A" ex
 
                     searchButtonEnabled.Set(true)
-                }
 
-            let doDownload =
-                async {
-                    match selectedItem.Current with
-                    | None -> ()
-                    | Some searchResult ->
-                        downloadButtonEnabled.Set(false)
-
-                        try
-                            let client = SpotifyClient()
-                            let! url = client.Tracks.GetDownloadUrlAsync(searchResult.Id).AsTask() |> Async.AwaitTask
-                            printfn "%A" url
-
-                            let path =
-                                Path.Combine(
-                                    Environment.GetFolderPath(Environment.SpecialFolder.MyMusic),
-                                    Regex.Replace(
-                                        $"{searchResult.Artists[0].Name} {searchResult.Title}",
-                                        "[\\/:*?\"<>|]*",
-                                        ""
-                                    )
-                                    + ".mp3"
-                                )
-
-                            let! response = Http.AsyncRequest(url)
-
-                            match response.Body with
-                            | Binary bytes -> File.WriteAllBytesAsync(path, bytes) |> Async.AwaitTask |> ignore
-                            | Text(_) -> ignore ()
-
-                        with ex ->
-                            printfn "%A" ex
-
-                        downloadButtonEnabled.Set(true)
+                    if not isPlaying.Current then
+                        playEnabled.Set(false)
                 }
 
             let play =
@@ -129,12 +142,12 @@ type Views =
                     match selectedItem.Current with
                     | None -> ()
                     | Some track ->
-                        let client = SpotifyClient()
                         playEnabled.Set(false)
 
                         try
-                            let! url = client.Tracks.GetDownloadUrlAsync(track.Id).AsTask() |> Async.AwaitTask
-                            isPlaying.Set(player.Current.Play(new Media(libVlc.Current, Uri(url))))
+                            isPlaying.Set(
+                                player.Current.Play(new Media(libVlc.Current, selectedItem.Current.Value.UrlResolved))
+                            )
                         with ex ->
                             printfn "%A" ex
                             isPlaying.Set(false)
@@ -151,39 +164,54 @@ type Views =
                         play |> Async.Start
                 }
 
-            let getItem (item: TrackSearchResult) =
-                let t = TimeSpan.FromMilliseconds(float item.DurationMs)
-                let duration = String.Format("{0:D2}:{1:D2}", t.Minutes, t.Seconds)
-                let artist = item.Artists |> Seq.map (fun x -> x.Name) |> String.concat ", "
-                let thumb = item.Album.Images |> Seq.minBy (fun x -> x.Width.Value)
 
-                let btm =
-                    ImageLoader.AsyncImageLoader.ProvideImageAsync(thumb.Url)
+            let getItem (item: StationInfo) =
+                let btm (url: string) =
+                    ImageLoader.AsyncImageLoader.ProvideImageAsync(url)
                     |> Async.AwaitTask
                     |> Async.RunSynchronously
+
+                let img =
+                    if item.Favicon = null || String.IsNullOrEmpty item.Favicon.AbsoluteUri then
+                        new Bitmap(Path.Combine(__SOURCE_DIRECTORY__, "img/radio.png"))
+                    else
+                        btm item.Favicon.AbsoluteUri
+
+                let languages = item.Language |> String.concat ", "
 
                 StackPanel.create
                     [ StackPanel.orientation Orientation.Horizontal
                       StackPanel.dock Dock.Top
-                      //StackPanel.margin 4
                       StackPanel.children
-                          [ Image.create [ Image.source btm ]
+                          [ Image.create [ Image.source img; Image.width 90; Image.height 90 ]
                             StackPanel.create
                                 [ StackPanel.orientation Orientation.Vertical
                                   StackPanel.width 620
                                   StackPanel.margin (15, 4, 15, 4)
                                   StackPanel.children
                                       [ TextBlock.create
-                                            [ TextBlock.text artist
-                                              TextBlock.fontWeight FontWeight.Bold
-                                              TextBlock.fontSize 16.0 ]
+                                            [ TextBlock.text item.Name
+                                              TextBlock.fontSize 16.0
+                                              TextBlock.fontWeight FontWeight.Bold ]
                                         TextBlock.create
-                                            [ TextBlock.text item.Album.Name
-                                              TextBlock.fontSize 14.0
-                                              TextBlock.fontStyle FontStyle.Italic ]
-                                        TextBlock.create [ TextBlock.text item.Title; TextBlock.fontSize 14.0 ] ] ]
-                            TextBlock.create [ TextBlock.text duration ] ] ]
+                                            [ TextBlock.text $"{item.Codec} : {item.Bitrate} kbps {languages}"
+                                              TextBlock.fontSize 14.0 ]
+                                        TextBlock.create
+                                            [ TextBlock.text (item.Tags |> String.concat ", ")
+                                              TextBlock.fontSize 12.0 ] ] ] ] ]
 
+            let getCountryItem (item: NameAndCount) =
+                let count =
+                    if item.Stationcount = 0u then
+                        ""
+                    else
+                        item.Stationcount.ToString()
+
+                StackPanel.create
+                    [ StackPanel.orientation Orientation.Horizontal
+                      StackPanel.children
+                          [ TextBlock.create [ TextBlock.text item.Name; TextBlock.width 230 ]
+                            TextBlock.create [ TextBlock.text (count); TextBlock.width 50 ] ] ]
 
             DockPanel.create
                 [ DockPanel.children
@@ -192,10 +220,24 @@ type Views =
                               StackPanel.dock Dock.Top
                               StackPanel.margin 4
                               StackPanel.children
-                                  [ TextBox.create
+                                  [ ComboBox.create
+                                        [ ComboBox.width 300
+                                          ComboBox.margin 4
+                                          ComboBox.dataItems countries.Current
+                                          ComboBox.itemTemplate (
+                                              DataTemplateView<_>.create (fun (data: NameAndCount) ->
+                                                  getCountryItem data)
+                                          )
+                                          ComboBox.onSelectedItemChanged (fun item ->
+                                              (match box item with
+                                               | null -> None
+                                               | :? NameAndCount as i -> Some i
+                                               | _ -> failwith "Something went horribly wrong!")
+                                              |> selectedCountry.Set) ]
+                                    TextBox.create
                                         [ TextBox.margin 4
                                           TextBox.watermark "Search music"
-                                          TextBox.width 655
+                                          TextBox.width 380
                                           TextBox.onKeyDown (fun e ->
                                               if e.Key = Key.Enter then
                                                   Async.StartImmediate doSearch)
@@ -210,7 +252,9 @@ type Views =
                                           ToolTip.tip "Search"
                                           Button.isEnabled (
                                               searchButtonEnabled.Current
-                                              && not (String.IsNullOrWhiteSpace(searchText.Current))
+                                              && (not (String.IsNullOrWhiteSpace(searchText.Current))
+                                                  || (selectedCountry.Current.IsSome
+                                                      && selectedCountry.Current.Value.Stationcount > 0u))
                                           )
                                           Button.onClick (fun _ -> Async.StartImmediate doSearch) ]
                                     Button.create
@@ -226,31 +270,21 @@ type Views =
                                                     ) ]
                                           )
                                           ToolTip.tip (if isPlaying.Current then "Stop" else "Play")
-                                          Button.isEnabled (selectedItem.Current.IsSome && playEnabled.Current)
-                                          Button.onClick (fun _ -> Async.StartImmediate playStop) ]
-                                    Button.create
-                                        [ Button.content (
-                                              SymbolIcon.create
-                                                  [ SymbolIcon.width 24
-                                                    SymbolIcon.height 24
-                                                    SymbolIcon.symbol FluentIcons.Common.Symbol.ArrowDownload ]
-                                          )
-                                          ToolTip.tip "Download"
-                                          Button.isEnabled (
-                                              selectedItem.Current.IsSome && downloadButtonEnabled.Current
-                                          )
-                                          Button.onClick (fun _ -> Async.StartImmediate doDownload) ] ] ]
+                                          Button.isEnabled playEnabled.Current
+                                          Button.onClick (fun _ -> Async.StartImmediate playStop) ] ] ]
                         ListBox.create
                             [ ListBox.dock Dock.Top
-                              ListBox.dataItems data.Current
+                              ListBox.dataItems items.Current
                               ListBox.onSelectedItemChanged (fun item ->
                                   (match box item with
                                    | null -> None
-                                   | :? TrackSearchResult as i -> Some i
+                                   | :? StationInfo as i -> Some i
                                    | _ -> failwith "Something went horribly wrong!")
-                                  |> selectedItem.Set)
+                                  |> selectedItem.Set
+
+                                  playEnabled.Set true)
                               ListBox.itemTemplate (
-                                  DataTemplateView<_>.create (fun (data: TrackSearchResult) -> getItem data)
+                                  DataTemplateView<_>.create (fun (data: StationInfo) -> getItem data)
                               )
                               ListBox.margin 4 ] ] ])
 
@@ -258,9 +292,10 @@ type MainWindow() as this =
     inherit HostWindow()
 
     do
-        base.Title <- "Spotify - Music Search/Download"
+        base.Title <- "Radio Browser"
         base.Width <- 800.0
         base.Height <- 500.0
+        base.Icon <- new WindowIcon(new Bitmap(Path.Combine(__SOURCE_DIRECTORY__, "img/Fsharp_logo.png")))
         this.Content <- Views.main ()
 
 type App() =
