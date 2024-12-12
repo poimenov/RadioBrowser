@@ -29,6 +29,8 @@ open RadioBrowser
 open RadioBrowser.Models
 open Avalonia.Media.Imaging
 open Avalonia.Media
+open Avalonia.Controls.Templates
+open Avalonia.Styling
 
 [<AutoOpen>]
 module SymbolIcon =
@@ -56,7 +58,7 @@ type Views =
 
     static member main() =
         Component(fun ctx ->
-            let limit = 100u
+            let limit = 1000u
 
             let getDefaultStations =
                 async {
@@ -164,41 +166,60 @@ type Views =
                         play |> Async.Start
                 }
 
-
             let getItem (item: StationInfo) =
-                let btm (url: string) =
-                    ImageLoader.AsyncImageLoader.ProvideImageAsync(url)
-                    |> Async.AwaitTask
-                    |> Async.RunSynchronously
-
                 let img =
-                    if item.Favicon = null || String.IsNullOrEmpty item.Favicon.AbsoluteUri then
-                        new Bitmap(Path.Combine(__SOURCE_DIRECTORY__, "img/radio.png"))
-                    else
-                        btm item.Favicon.AbsoluteUri
+                    async {
+                        if item.Favicon = null || String.IsNullOrEmpty item.Favicon.AbsoluteUri then
+                            return new Bitmap(Path.Combine(__SOURCE_DIRECTORY__, "img/radio.png"))
+                        else
+                            return!
+                                ImageLoader.AsyncImageLoader.ProvideImageAsync(item.Favicon.AbsoluteUri)
+                                |> Async.AwaitTask
+                    }
 
                 let languages = item.Language |> String.concat ", "
 
-                StackPanel.create
-                    [ StackPanel.orientation Orientation.Horizontal
-                      StackPanel.dock Dock.Top
-                      StackPanel.children
-                          [ Image.create [ Image.source img; Image.width 90; Image.height 90 ]
-                            StackPanel.create
-                                [ StackPanel.orientation Orientation.Vertical
-                                  StackPanel.width 620
-                                  StackPanel.margin (15, 4, 15, 4)
-                                  StackPanel.children
-                                      [ TextBlock.create
-                                            [ TextBlock.text item.Name
-                                              TextBlock.fontSize 16.0
-                                              TextBlock.fontWeight FontWeight.Bold ]
-                                        TextBlock.create
-                                            [ TextBlock.text $"{item.Codec} : {item.Bitrate} kbps {languages}"
-                                              TextBlock.fontSize 14.0 ]
-                                        TextBlock.create
-                                            [ TextBlock.text (item.Tags |> String.concat ", ")
-                                              TextBlock.fontSize 12.0 ] ] ] ] ]
+                Border.create
+                    [ Border.borderThickness (1., 1., 1., 1.)
+                      Border.borderBrush (SolidColorBrush(Color.FromRgb(180uy, 180uy, 180uy)))
+                      Border.padding 5.
+                      Border.margin 0.
+                      Border.cornerRadius 5.
+                      Border.child (
+                          StackPanel.create
+                              [ StackPanel.orientation Orientation.Horizontal
+                                StackPanel.width 360
+                                StackPanel.useLayoutRounding true
+                                StackPanel.children
+                                    [ Image.create
+                                          [ Image.width 90
+                                            Image.height 90
+                                            Image.init (fun x ->
+                                                Async.StartWithContinuations(
+                                                    img,
+                                                    (fun b -> x.Source <- b),
+                                                    (fun _ -> ()),
+                                                    (fun _ -> ())
+                                                )) ]
+                                      StackPanel.create
+                                          [ StackPanel.orientation Orientation.Vertical
+                                            StackPanel.margin 5
+                                            StackPanel.children
+                                                [ TextBlock.create
+                                                      [ TextBlock.text item.Name
+                                                        TextBlock.fontSize 16.0
+                                                        TextBlock.fontWeight FontWeight.Bold ]
+                                                  TextBlock.create
+                                                      [ TextBlock.text
+                                                            $"{item.Codec} : {item.Bitrate} kbps {languages}"
+                                                        TextBlock.fontSize 14.0 ]
+                                                  TextBlock.create
+                                                      [ TextBlock.text (item.Tags |> String.concat ", ")
+                                                        TextBlock.textWrapping TextWrapping.WrapWithOverflow
+                                                        TextBlock.width 160.0
+                                                        TextBlock.height 40.0
+                                                        TextBlock.fontSize 12.0 ] ] ] ] ]
+                      ) ]
 
             let getCountryItem (item: NameAndCount) =
                 let count =
@@ -212,6 +233,11 @@ type Views =
                       StackPanel.children
                           [ TextBlock.create [ TextBlock.text item.Name; TextBlock.width 230 ]
                             TextBlock.create [ TextBlock.text (count); TextBlock.width 50 ] ] ]
+
+            let getStyle =
+                let style = new Style(fun x -> x.OfType(typeof<ListBoxItem>))
+                style.Setters.Add(Setter(ListBoxItem.PaddingProperty, Thickness(2.0)))
+                style :> IStyle
 
             DockPanel.create
                 [ DockPanel.children
@@ -275,6 +301,8 @@ type Views =
                         ListBox.create
                             [ ListBox.dock Dock.Top
                               ListBox.dataItems items.Current
+                              ListBox.itemsPanel (FuncTemplate<Panel>(fun () -> WrapPanel()))
+                              ListBox.styles ([ getStyle ])
                               ListBox.onSelectedItemChanged (fun item ->
                                   (match box item with
                                    | null -> None
