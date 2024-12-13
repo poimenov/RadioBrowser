@@ -58,19 +58,31 @@ type Views =
 
     static member main() =
         Component(fun ctx ->
-            let limit = 1000u
+            let items = ctx.useState<ObservableCollection<StationInfo>> (ObservableCollection())
+
+            let countries =
+                ctx.useState<ObservableCollection<NameAndCount>> (ObservableCollection())
+
+            let selectedItem = ctx.useState<Option<StationInfo>> None
+            let selectedCountry = ctx.useState<Option<NameAndCount>> None
+            let searchButtonEnabled = ctx.useState false
+            let playEnabled = ctx.useState false
+            let isPlaying = ctx.useState false
+            let searchText = ctx.useState ""
+            let libVlc = ctx.useState (new LibVLC())
+
+            let limit = 100u
 
             let getDefaultStations =
                 async {
+                    printfn "getDefaultStations"
                     let client = RadioBrowserClient()
                     return! client.Stations.GetByVotesAsync(limit) |> Async.AwaitTask
                 }
 
-            let items =
-                ctx.useState (ObservableCollection<StationInfo>(getDefaultStations |> Async.RunSynchronously))
-
             let getCountries =
                 async {
+                    printfn "getCountries"
                     let client = RadioBrowserClient()
                     let! result = client.Lists.GetCountriesAsync() |> Async.AwaitTask
                     let empty = new NameAndCount()
@@ -80,16 +92,26 @@ type Views =
                     return result
                 }
 
-            let countries =
-                ctx.useState (ObservableCollection<NameAndCount>(getCountries |> Async.RunSynchronously))
+            ctx.useEffect (
+                handler =
+                    (fun _ ->
+                        printfn "init"
 
-            let selectedItem = ctx.useState<Option<StationInfo>> None
-            let selectedCountry = ctx.useState<Option<NameAndCount>> None
-            let searchButtonEnabled = ctx.useState true
-            let playEnabled = ctx.useState false
-            let isPlaying = ctx.useState false
-            let searchText = ctx.useState ""
-            let libVlc = ctx.useState (new LibVLC())
+                        Async.StartWithContinuations(
+                            getDefaultStations,
+                            (fun (stations) -> (stations |> Seq.iter (fun x -> items.Current.Add(x)))),
+                            (fun ex -> (printfn "%A" ex)),
+                            (fun _ -> ())
+                        )
+
+                        Async.StartWithContinuations(
+                            getCountries,
+                            (fun (_countries) -> (_countries |> Seq.iter (fun x -> countries.Current.Add(x)))),
+                            (fun ex -> (printfn "%A" ex)),
+                            (fun _ -> ())
+                        )),
+                triggers = [ EffectTrigger.AfterInit ]
+            )
 
             let getPlayer =
                 let _player = new MediaPlayer(libVlc.Current)
@@ -106,6 +128,7 @@ type Views =
             let doSearch =
                 async {
                     searchButtonEnabled.Set(false)
+                    printfn "search"
 
                     try
                         items.Current.Clear()
@@ -167,10 +190,12 @@ type Views =
                 }
 
             let getItem (item: StationInfo) =
+                let defaultImg = new Bitmap(Path.Combine(__SOURCE_DIRECTORY__, "img/radio.png"))
+
                 let img =
                     async {
                         if item.Favicon = null || String.IsNullOrEmpty item.Favicon.AbsoluteUri then
-                            return new Bitmap(Path.Combine(__SOURCE_DIRECTORY__, "img/radio.png"))
+                            return defaultImg
                         else
                             return!
                                 ImageLoader.AsyncImageLoader.ProvideImageAsync(item.Favicon.AbsoluteUri)
@@ -180,11 +205,8 @@ type Views =
                 let languages = item.Language |> String.concat ", "
 
                 Border.create
-                    [ Border.borderThickness (1., 1., 1., 1.)
-                      Border.borderBrush (SolidColorBrush(Color.FromRgb(180uy, 180uy, 180uy)))
-                      Border.padding 5.
+                    [ Border.padding 5.
                       Border.margin 0.
-                      Border.cornerRadius 5.
                       Border.child (
                           StackPanel.create
                               [ StackPanel.orientation Orientation.Horizontal
@@ -198,8 +220,8 @@ type Views =
                                                 Async.StartWithContinuations(
                                                     img,
                                                     (fun b -> x.Source <- b),
-                                                    (fun _ -> ()),
-                                                    (fun _ -> ())
+                                                    (fun _ -> x.Source <- defaultImg),
+                                                    (fun _ -> x.Source <- defaultImg)
                                                 )) ]
                                       StackPanel.create
                                           [ StackPanel.orientation Orientation.Vertical
@@ -214,7 +236,11 @@ type Views =
                                                             $"{item.Codec} : {item.Bitrate} kbps {languages}"
                                                         TextBlock.fontSize 14.0 ]
                                                   TextBlock.create
-                                                      [ TextBlock.text (item.Tags |> String.concat ", ")
+                                                      [ TextBlock.text (
+                                                            item.Tags
+                                                            |> Seq.map (fun s -> s.Trim())
+                                                            |> String.concat ", "
+                                                        )
                                                         TextBlock.textWrapping TextWrapping.WrapWithOverflow
                                                         TextBlock.width 160.0
                                                         TextBlock.height 40.0
@@ -237,6 +263,10 @@ type Views =
             let getStyle =
                 let style = new Style(fun x -> x.OfType(typeof<ListBoxItem>))
                 style.Setters.Add(Setter(ListBoxItem.PaddingProperty, Thickness(2.0)))
+                style.Setters.Add(Setter(ListBoxItem.CornerRadiusProperty, CornerRadius(5.0)))
+                style.Setters.Add(Setter(ListBoxItem.BorderBrushProperty, Brushes.Gray))
+                style.Setters.Add(Setter(ListBoxItem.BorderThicknessProperty, Thickness(1.0)))
+                style.Setters.Add(Setter(ListBoxItem.MarginProperty, Thickness(2.0)))
                 style :> IStyle
 
             DockPanel.create
@@ -259,15 +289,42 @@ type Views =
                                                | null -> None
                                                | :? NameAndCount as i -> Some i
                                                | _ -> failwith "Something went horribly wrong!")
-                                              |> selectedCountry.Set) ]
+                                              |> selectedCountry.Set
+
+                                              let isCountrySelected =
+                                                  selectedCountry.Current.IsSome
+                                                  && selectedCountry.Current.Value.Stationcount > 0u
+
+                                              if isCountrySelected && not searchButtonEnabled.Current then
+                                                  searchButtonEnabled.Set(true)
+                                              elif
+                                                  not isCountrySelected
+                                                  && searchButtonEnabled.Current
+                                                  && String.IsNullOrWhiteSpace(searchText.Current)
+                                              then
+                                                  searchButtonEnabled.Set(false)) ]
                                     TextBox.create
                                         [ TextBox.margin 4
-                                          TextBox.watermark "Search music"
+                                          TextBox.watermark "Search radio stations"
                                           TextBox.width 380
                                           TextBox.onKeyDown (fun e ->
                                               if e.Key = Key.Enter then
+                                                  let textBox = e.Source :?> TextBox
+                                                  searchText.Set(textBox.Text)
+                                                  searchButtonEnabled.Set(false)
                                                   Async.StartImmediate doSearch)
-                                          TextBox.onTextChanged (fun e -> searchText.Set(e)) ]
+                                          TextBox.onTextChanged (fun e ->
+                                              (if
+                                                   not (String.IsNullOrWhiteSpace(e))
+                                                   && not searchButtonEnabled.Current
+                                               then
+                                                   searchButtonEnabled.Set(true)
+                                               elif
+                                                   String.IsNullOrWhiteSpace(e)
+                                                   && searchButtonEnabled.Current
+                                                   && selectedCountry.Current.Value.Stationcount = 0u
+                                               then
+                                                   searchButtonEnabled.Set(false))) ]
                                     Button.create
                                         [ Button.content (
                                               SymbolIcon.create
@@ -276,13 +333,21 @@ type Views =
                                                     SymbolIcon.symbol FluentIcons.Common.Symbol.Search ]
                                           )
                                           ToolTip.tip "Search"
-                                          Button.isEnabled (
-                                              searchButtonEnabled.Current
-                                              && (not (String.IsNullOrWhiteSpace(searchText.Current))
-                                                  || (selectedCountry.Current.IsSome
-                                                      && selectedCountry.Current.Value.Stationcount > 0u))
-                                          )
-                                          Button.onClick (fun _ -> Async.StartImmediate doSearch) ]
+                                          Button.isEnabled searchButtonEnabled.Current
+                                          Button.onClick (fun e ->
+                                              let button = e.Source :?> Button
+                                              let stackPanel = button.Parent :?> StackPanel
+
+                                              let textBox =
+                                                  stackPanel.Children
+                                                  |> Seq.filter (fun c -> c :? TextBox)
+                                                  |> Seq.head
+                                                  :?> TextBox
+
+                                              printfn "search text is %s" textBox.Text
+                                              searchText.Set(textBox.Text)
+                                              searchButtonEnabled.Set(false)
+                                              Async.StartImmediate doSearch) ]
                                     Button.create
                                         [ Button.content (
                                               SymbolIcon.create
