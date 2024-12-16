@@ -75,14 +75,12 @@ type Views =
 
             let getDefaultStations =
                 async {
-                    printfn "getDefaultStations"
                     let client = RadioBrowserClient()
                     return! client.Stations.GetByVotesAsync(limit) |> Async.AwaitTask
                 }
 
             let getCountries =
                 async {
-                    printfn "getCountries"
                     let client = RadioBrowserClient()
                     let! result = client.Lists.GetCountriesAsync() |> Async.AwaitTask
                     let empty = new NameAndCount()
@@ -92,10 +90,33 @@ type Views =
                     return result
                 }
 
+            let getPlayer =
+                let _player = new MediaPlayer(libVlc.Current)
+
+                _player.EndReached.Add(fun _ ->
+                    isPlaying.Set(false)
+                    _player.Stop()
+                    _player.Media.Dispose()
+                    _player.Media <- null)
+
+                _player.EncounteredError.Add(fun _ ->
+                    printfn "EncounteredError"
+                    isPlaying.Set(false)
+                    _player.Stop()
+                    _player.Media.Dispose()
+                    _player.Media <- null)
+
+                _player
+
+            let player = ctx.useState (getPlayer)
+
             ctx.useEffect (
                 handler =
                     (fun _ ->
-                        printfn "init"
+                        ctx.control.Unloaded.Add(fun _ ->
+                            player.Current.Stop()
+                            player.Current.Dispose()
+                            libVlc.Current.Dispose())
 
                         Async.StartWithContinuations(
                             getDefaultStations,
@@ -113,22 +134,9 @@ type Views =
                 triggers = [ EffectTrigger.AfterInit ]
             )
 
-            let getPlayer =
-                let _player = new MediaPlayer(libVlc.Current)
-
-                _player.EndReached.Add(fun _ ->
-                    isPlaying.Set(false)
-                    _player.Media.Dispose()
-                    _player.Media <- null)
-
-                _player
-
-            let player = ctx.useState (getPlayer)
-
             let doSearch =
                 async {
                     searchButtonEnabled.Set(false)
-                    printfn "search"
 
                     try
                         items.Current.Clear()
@@ -170,9 +178,15 @@ type Views =
                         playEnabled.Set(false)
 
                         try
-                            isPlaying.Set(
-                                player.Current.Play(new Media(libVlc.Current, selectedItem.Current.Value.UrlResolved))
-                            )
+                            let media = new Media(libVlc.Current, selectedItem.Current.Value.Url)
+                            let! result = media.Parse(MediaParseOptions.ParseNetwork) |> Async.AwaitTask
+
+                            if result = MediaParsedStatus.Done then
+                                isPlaying.Set(player.Current.Play(media))
+
+                                printfn "Playing Url: %A" selectedItem.Current.Value.Url
+                            else
+                                printfn "Url: %A MediaParseStatus: %A" selectedItem.Current.Value.Url result
                         with ex ->
                             printfn "%A" ex
                             isPlaying.Set(false)
@@ -344,7 +358,6 @@ type Views =
                                                   |> Seq.head
                                                   :?> TextBox
 
-                                              printfn "search text is %s" textBox.Text
                                               searchText.Set(textBox.Text)
                                               searchButtonEnabled.Set(false)
                                               Async.StartImmediate doSearch) ]
