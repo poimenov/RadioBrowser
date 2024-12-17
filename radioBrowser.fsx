@@ -447,7 +447,7 @@ type MainWindow() as this =
     do
         base.Title <- "Radio Browser"
         base.Width <- 780.0
-        base.Height <- 500.0
+        base.Height <- 522.0
         base.Icon <- new WindowIcon(new Bitmap(Path.Combine(__SOURCE_DIRECTORY__, "img/Fsharp_logo.png")))
         this.Content <- Views.main ()
 

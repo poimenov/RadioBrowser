@@ -9,6 +9,9 @@ Script for searching and downloading music from youtube (fromYoutube.fsx)
 Script for searching and downloading music from spotify (fromSpotify.fsx)
 ![Screenshot of the script UI](/img/screen2.jpg)
 
+Script for [radio browser](https://www.radio-browser.info/) (radioBrowser.fsx)
+![Screenshot of the script UI](/img/screen3.jpg)
+
 ## Description
 
 Scripts for searching and downloading music
