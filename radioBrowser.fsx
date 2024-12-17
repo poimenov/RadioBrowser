@@ -31,12 +31,12 @@ open Avalonia.Media.Imaging
 open Avalonia.Media
 open Avalonia.Controls.Templates
 open Avalonia.Styling
+open FluentIcons.Common
 
 [<AutoOpen>]
 module SymbolIcon =
     open Avalonia.FuncUI.Types
     open Avalonia.FuncUI.Builder
-    open FluentIcons.Common
 
     let create (attrs: IAttr<SymbolIcon> list) : IView<SymbolIcon> = ViewBuilder.Create<SymbolIcon>(attrs)
 
@@ -44,14 +44,6 @@ module SymbolIcon =
         static member symbol<'t when 't :> SymbolIcon>(value: Symbol) : IAttr<'t> =
             AttrBuilder<'t>
                 .CreateProperty<Symbol>(SymbolIcon.SymbolProperty, value, ValueNone)
-
-[<AutoOpen>]
-module HyperlinkButton =
-    open Avalonia.FuncUI.Types
-    open Avalonia.FuncUI.Builder
-
-    let create (attrs: IAttr<HyperlinkButton> list) : IView<HyperlinkButton> =
-        ViewBuilder.Create<HyperlinkButton>(attrs)
 
 [<AbstractClass; Sealed>]
 type Views =
@@ -158,7 +150,11 @@ type Views =
 
                             opt
 
-                        let! results = client.Search.AdvancedAsync(options) |> Async.AwaitTask
+                        let! results =
+                            if (String.IsNullOrEmpty(options.Name) && String.IsNullOrEmpty(options.Country)) then
+                                client.Stations.GetByVotesAsync(limit) |> Async.AwaitTask
+                            else
+                                client.Search.AdvancedAsync(options) |> Async.AwaitTask
 
                         results |> Seq.iter (fun x -> items.Current.Add(x))
                     with ex ->
@@ -203,7 +199,7 @@ type Views =
                         play |> Async.Start
                 }
 
-            let getItem (item: StationInfo) =
+            let getItem (item: StationInfo, textWidth: double) =
                 let defaultImg = new Bitmap(Path.Combine(__SOURCE_DIRECTORY__, "img/radio.png"))
 
                 let img =
@@ -224,12 +220,12 @@ type Views =
                       Border.child (
                           StackPanel.create
                               [ StackPanel.orientation Orientation.Horizontal
-                                StackPanel.width 360
+                                StackPanel.horizontalAlignment HorizontalAlignment.Stretch
                                 StackPanel.useLayoutRounding true
                                 StackPanel.children
                                     [ Image.create
-                                          [ Image.width 90
-                                            Image.height 90
+                                          [ Image.width 60
+                                            Image.height 60
                                             Image.init (fun x ->
                                                 Async.StartWithContinuations(
                                                     img,
@@ -244,10 +240,16 @@ type Views =
                                                 [ TextBlock.create
                                                       [ TextBlock.text item.Name
                                                         TextBlock.fontSize 16.0
+                                                        TextBlock.textTrimming TextTrimming.CharacterEllipsis
+                                                        TextBlock.textWrapping TextWrapping.NoWrap
+                                                        TextBlock.width textWidth
                                                         TextBlock.fontWeight FontWeight.Bold ]
                                                   TextBlock.create
                                                       [ TextBlock.text
                                                             $"{item.Codec} : {item.Bitrate} kbps {languages}"
+                                                        TextBlock.textTrimming TextTrimming.CharacterEllipsis
+                                                        TextBlock.textWrapping TextWrapping.NoWrap
+                                                        TextBlock.width textWidth
                                                         TextBlock.fontSize 14.0 ]
                                                   TextBlock.create
                                                       [ TextBlock.text (
@@ -255,11 +257,20 @@ type Views =
                                                             |> Seq.map (fun s -> s.Trim())
                                                             |> String.concat ", "
                                                         )
-                                                        TextBlock.textWrapping TextWrapping.WrapWithOverflow
-                                                        TextBlock.width 160.0
-                                                        TextBlock.height 40.0
+                                                        TextBlock.textTrimming TextTrimming.CharacterEllipsis
+                                                        TextBlock.textWrapping TextWrapping.NoWrap
+                                                        TextBlock.width textWidth
                                                         TextBlock.fontSize 12.0 ] ] ] ] ]
                       ) ]
+
+            let getSelectedItem (item: Option<StationInfo>) =
+                match item with
+                | None ->
+                    Border.create
+                        [ Border.child (
+                              TextBlock.create [ TextBlock.margin 20; TextBlock.text "No stations selected" ]
+                          ) ]
+                | Some track -> getItem (track, 650.0)
 
             let getCountryItem (item: NameAndCount) =
                 let count =
@@ -271,27 +282,38 @@ type Views =
                 StackPanel.create
                     [ StackPanel.orientation Orientation.Horizontal
                       StackPanel.children
-                          [ TextBlock.create [ TextBlock.text item.Name; TextBlock.width 230 ]
-                            TextBlock.create [ TextBlock.text (count); TextBlock.width 50 ] ] ]
+                          [ TextBlock.create
+                                [ TextBlock.text item.Name
+                                  TextBlock.textTrimming TextTrimming.CharacterEllipsis
+                                  TextBlock.textWrapping TextWrapping.NoWrap
+                                  TextBlock.width 270 ]
+                            TextBlock.create
+                                [ TextBlock.text (count)
+                                  TextBlock.width 50
+                                  TextBlock.textAlignment TextAlignment.Right ] ] ]
 
             let getStyle =
                 let style = new Style(fun x -> x.OfType(typeof<ListBoxItem>))
                 style.Setters.Add(Setter(ListBoxItem.PaddingProperty, Thickness(2.0)))
                 style.Setters.Add(Setter(ListBoxItem.CornerRadiusProperty, CornerRadius(5.0)))
+                style.Setters.Add(Setter(ListBoxItem.WidthProperty, 360.0))
                 style.Setters.Add(Setter(ListBoxItem.BorderBrushProperty, Brushes.Gray))
                 style.Setters.Add(Setter(ListBoxItem.BorderThicknessProperty, Thickness(1.0)))
                 style.Setters.Add(Setter(ListBoxItem.MarginProperty, Thickness(2.0)))
                 style :> IStyle
 
-            DockPanel.create
-                [ DockPanel.children
-                      [ StackPanel.create
-                            [ StackPanel.orientation Orientation.Horizontal
-                              StackPanel.dock Dock.Top
-                              StackPanel.margin 4
-                              StackPanel.children
+            Grid.create
+                [ Grid.rowDefinitions "Auto, *, Auto"
+                  Grid.row 0
+                  Grid.children
+                      [ Grid.create
+                            [ Grid.row 0
+                              Grid.columnDefinitions "371, *, Auto"
+                              Grid.children
                                   [ ComboBox.create
-                                        [ ComboBox.width 300
+                                        [ Grid.column 0
+                                          ComboBox.horizontalAlignment HorizontalAlignment.Stretch
+                                          ComboBox.verticalAlignment VerticalAlignment.Stretch
                                           ComboBox.margin 4
                                           ComboBox.dataItems countries.Current
                                           ComboBox.itemTemplate (
@@ -318,9 +340,10 @@ type Views =
                                               then
                                                   searchButtonEnabled.Set(false)) ]
                                     TextBox.create
-                                        [ TextBox.margin 4
+                                        [ Grid.column 1
+                                          TextBox.margin (1, 4, 1, 4)
                                           TextBox.watermark "Search radio stations"
-                                          TextBox.width 380
+                                          TextBox.horizontalAlignment HorizontalAlignment.Stretch
                                           TextBox.onKeyDown (fun e ->
                                               if e.Key = Key.Enter then
                                                   let textBox = e.Source :?> TextBox
@@ -336,49 +359,37 @@ type Views =
                                                elif
                                                    String.IsNullOrWhiteSpace(e)
                                                    && searchButtonEnabled.Current
-                                                   && selectedCountry.Current.Value.Stationcount = 0u
+                                                   && selectedCountry.Current.IsNone
                                                then
                                                    searchButtonEnabled.Set(false))) ]
                                     Button.create
-                                        [ Button.content (
+                                        [ Grid.column 2
+                                          Button.margin 4
+                                          Button.content (
                                               SymbolIcon.create
                                                   [ SymbolIcon.width 24
                                                     SymbolIcon.height 24
-                                                    SymbolIcon.symbol FluentIcons.Common.Symbol.Search ]
+                                                    SymbolIcon.symbol Symbol.Search ]
                                           )
                                           ToolTip.tip "Search"
                                           Button.isEnabled searchButtonEnabled.Current
                                           Button.onClick (fun e ->
                                               let button = e.Source :?> Button
-                                              let stackPanel = button.Parent :?> StackPanel
+                                              let grid = button.Parent :?> Grid
 
                                               let textBox =
-                                                  stackPanel.Children
-                                                  |> Seq.filter (fun c -> c :? TextBox)
-                                                  |> Seq.head
+                                                  grid.Children |> Seq.filter (fun c -> c :? TextBox) |> Seq.head
                                                   :?> TextBox
 
                                               searchText.Set(textBox.Text)
                                               searchButtonEnabled.Set(false)
-                                              Async.StartImmediate doSearch) ]
-                                    Button.create
-                                        [ Button.content (
-                                              SymbolIcon.create
-                                                  [ SymbolIcon.width 24
-                                                    SymbolIcon.height 24
-                                                    SymbolIcon.symbol (
-                                                        if isPlaying.Current then
-                                                            FluentIcons.Common.Symbol.Stop
-                                                        else
-                                                            FluentIcons.Common.Symbol.Play
-                                                    ) ]
-                                          )
-                                          ToolTip.tip (if isPlaying.Current then "Stop" else "Play")
-                                          Button.isEnabled playEnabled.Current
-                                          Button.onClick (fun _ -> Async.StartImmediate playStop) ] ] ]
+                                              Async.StartImmediate doSearch) ] ] ]
+
                         ListBox.create
-                            [ ListBox.dock Dock.Top
+                            [ Grid.row 1
+                              ListBox.background (SolidColorBrush(Colors.Transparent))
                               ListBox.dataItems items.Current
+                              ListBox.margin 4
                               ListBox.itemsPanel (FuncTemplate<Panel>(fun () -> WrapPanel()))
                               ListBox.styles ([ getStyle ])
                               ListBox.onSelectedItemChanged (fun item ->
@@ -388,18 +399,54 @@ type Views =
                                    | _ -> failwith "Something went horribly wrong!")
                                   |> selectedItem.Set
 
+                                  if isPlaying.Current then
+                                      Async.StartImmediate playStop
+
                                   playEnabled.Set true)
                               ListBox.itemTemplate (
-                                  DataTemplateView<_>.create (fun (data: StationInfo) -> getItem data)
+                                  DataTemplateView<_>.create (fun (data: StationInfo) -> getItem (data, 270.0))
                               )
-                              ListBox.margin 4 ] ] ])
+                              ListBox.margin 4 ]
+                        Grid.create
+                            [ Grid.row 2
+                              Grid.columnDefinitions "*, Auto"
+                              Grid.children
+                                  [ Panel.create
+                                        [ Grid.column 0
+                                          Panel.height 70
+                                          Panel.horizontalAlignment HorizontalAlignment.Left
+                                          Panel.dataContext selectedItem.Current
+                                          Panel.children
+                                              [ ContentControl.create
+                                                    [ ContentControl.content selectedItem.Current
+                                                      ContentControl.contentTemplate (
+                                                          DataTemplateView<_>.create
+                                                              (fun (data: Option<StationInfo>) -> getSelectedItem data)
+                                                      ) ] ] ]
+
+                                    Button.create
+                                        [ Grid.column 1
+                                          Button.margin (4, 20, 4, 4)
+                                          Button.content (
+                                              SymbolIcon.create
+                                                  [ SymbolIcon.width 24
+                                                    SymbolIcon.height 24
+                                                    SymbolIcon.symbol (
+                                                        if isPlaying.Current then Symbol.Stop else Symbol.Play
+                                                    ) ]
+                                          )
+                                          ToolTip.tip (if isPlaying.Current then "Stop" else "Play")
+                                          Button.isEnabled playEnabled.Current
+                                          Button.onClick (fun _ -> Async.StartImmediate playStop) ]
+
+                                    ] ] ] ])
 
 type MainWindow() as this =
     inherit HostWindow()
 
     do
         base.Title <- "Radio Browser"
-        base.Width <- 800.0
+        base.Width <- 780.0
         base.Height <- 500.0
         base.Icon <- new WindowIcon(new Bitmap(Path.Combine(__SOURCE_DIRECTORY__, "img/Fsharp_logo.png")))
         this.Content <- Views.main ()
