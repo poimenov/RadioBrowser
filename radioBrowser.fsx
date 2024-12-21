@@ -8,6 +8,8 @@
 #r "nuget: LibVLCSharp"
 #r "nuget: RadioBrowser"
 #r "nuget: AsyncImageLoader.Avalonia"
+#r "nuget: PSC.CSharp.Library.CountryData"
+#r "nuget: Avalonia.Svg"
 
 #endif
 
@@ -32,6 +34,8 @@ open Avalonia.Media
 open Avalonia.Controls.Templates
 open Avalonia.Styling
 open FluentIcons.Common
+open PSC.CSharp.Library.CountryData
+open Avalonia.Svg
 
 [<AutoOpen>]
 module SymbolIcon =
@@ -62,6 +66,7 @@ type Views =
             let isPlaying = ctx.useState false
             let searchText = ctx.useState ""
             let libVlc = ctx.useState (new LibVLC())
+            let countryHelper = ctx.useState (new CountryHelper())
 
             let limit = 100u
 
@@ -74,12 +79,18 @@ type Views =
             let getCountries =
                 async {
                     let client = RadioBrowserClient()
-                    let! result = client.Lists.GetCountriesAsync() |> Async.AwaitTask
+                    let! countryCodes = client.Lists.GetCountriesCodesAsync() |> Async.AwaitTask
+
+                    let codes =
+                        countryHelper.Current.GetCountryData()
+                        |> Seq.map (fun x -> x.CountryShortCode)
+                        |> Set.ofSeq
+
+                    let result = countryCodes |> Seq.filter (fun x -> codes.Contains(x.Name))
                     let empty = new NameAndCount()
                     empty.Name <- ""
                     empty.Stationcount <- 0u
-                    result.Insert(0, empty)
-                    return result
+                    return result |> Seq.insertAt 0 empty
                 }
 
             let getPlayer =
@@ -146,7 +157,10 @@ type Views =
                                 selectedCountry.Current.IsSome
                                 && selectedCountry.Current.Value.Stationcount > 0u
                             then
-                                opt.Country <- selectedCountry.Current.Value.Name
+                                let country =
+                                    countryHelper.Current.GetCountryByCode(selectedCountry.Current.Value.Name)
+
+                                opt.Country <- country.CountryName
 
                             opt
 
@@ -199,6 +213,30 @@ type Views =
                         play |> Async.Start
                 }
 
+            let getSvgImageBycountryCode (countryCode: string) =
+                let svgStart =
+                    "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" id=\"flag-icons-ad\" viewBox=\"0 0 640 480\">"
+
+                let svgEnd = "</svg>"
+
+                let xml =
+                    if countryCode <> String.Empty then
+                        svgStart
+                        + countryHelper.Current.GetFlagByCountryCode(countryCode, SVGImages.FlagType.Wide)
+                        + svgEnd
+                    else
+                        svgStart + svgEnd
+
+                let svgImage = new SvgImage()
+
+                try
+                    svgImage.Source <- SvgSource.LoadFromSvg(xml)
+                with ex ->
+                    printfn "%A" countryCode
+                    printfn "%A" ex
+
+                svgImage
+
             let getItem (item: StationInfo, textWidth: double) =
                 let defaultImg = new Bitmap(Path.Combine(__SOURCE_DIRECTORY__, "img/radio.png"))
 
@@ -213,6 +251,13 @@ type Views =
                     }
 
                 let languages = item.Language |> String.concat ", "
+                let svgImage = getSvgImageBycountryCode item.CountryCode
+
+                let countryName =
+                    if item.CountryCode <> String.Empty then
+                        countryHelper.Current.GetCountryByCode(item.CountryCode).CountryName
+                    else
+                        String.Empty
 
                 Border.create
                     [ Border.padding 5.
@@ -244,13 +289,23 @@ type Views =
                                                         TextBlock.textWrapping TextWrapping.NoWrap
                                                         TextBlock.width textWidth
                                                         TextBlock.fontWeight FontWeight.Bold ]
-                                                  TextBlock.create
-                                                      [ TextBlock.text
-                                                            $"{item.Codec} : {item.Bitrate} kbps {languages}"
-                                                        TextBlock.textTrimming TextTrimming.CharacterEllipsis
-                                                        TextBlock.textWrapping TextWrapping.NoWrap
-                                                        TextBlock.width textWidth
-                                                        TextBlock.fontSize 14.0 ]
+                                                  StackPanel.create
+                                                      [ StackPanel.orientation Orientation.Horizontal
+                                                        StackPanel.children
+                                                            [ Image.create
+                                                                  [ Image.source svgImage
+                                                                    Image.tip countryName
+                                                                    Image.margin (2, 0, 6, 0)
+                                                                    Image.width 22
+                                                                    Image.height 16 ]
+                                                              TextBlock.create
+                                                                  [ TextBlock.text
+                                                                        $"{item.Codec} : {item.Bitrate} kbps {languages}"
+                                                                    TextBlock.textTrimming
+                                                                        TextTrimming.CharacterEllipsis
+                                                                    TextBlock.textWrapping TextWrapping.NoWrap
+                                                                    TextBlock.width (textWidth - 30.0)
+                                                                    TextBlock.fontSize 14.0 ] ] ]
                                                   TextBlock.create
                                                       [ TextBlock.text (
                                                             item.Tags
@@ -279,14 +334,34 @@ type Views =
                     else
                         item.Stationcount.ToString()
 
+                let emptyCountry = new Country()
+                emptyCountry.CountryName <- String.Empty
+
+                emptyCountry.CountryFlag <- countryHelper.Current.GetFlagByCountryCode("ru", SVGImages.FlagType.Square)
+
+                emptyCountry.CountryShortCode <- String.Empty
+
+                let country =
+                    if item.Stationcount <> 0u then
+                        countryHelper.Current.GetCountryByCode(item.Name)
+                    else
+                        emptyCountry
+
+                let svgImage = getSvgImageBycountryCode item.Name
+
                 StackPanel.create
                     [ StackPanel.orientation Orientation.Horizontal
                       StackPanel.children
-                          [ TextBlock.create
-                                [ TextBlock.text item.Name
+                          [ Image.create
+                                [ Image.source svgImage
+                                  Image.margin (2, 0, 6, 0)
+                                  Image.width 22
+                                  Image.height 16 ]
+                            TextBlock.create
+                                [ TextBlock.text country.CountryName
                                   TextBlock.textTrimming TextTrimming.CharacterEllipsis
                                   TextBlock.textWrapping TextWrapping.NoWrap
-                                  TextBlock.width 270 ]
+                                  TextBlock.width 240 ]
                             TextBlock.create
                                 [ TextBlock.text (count)
                                   TextBlock.width 50
