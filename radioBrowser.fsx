@@ -65,7 +65,10 @@ type Views =
             let playEnabled = ctx.useState false
             let isPlaying = ctx.useState false
             let searchText = ctx.useState ""
-            let libVlc = ctx.useState (new LibVLC())
+            //https://wiki.videolan.org/VLC_command-line_help/
+            let libVlc =
+                ctx.useState (new LibVLC([| "--network-caching=3000"; "--http-reconnect" |]))
+
             let countryHelper = ctx.useState (new CountryHelper())
 
             let limit = 100u
