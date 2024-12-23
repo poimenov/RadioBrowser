@@ -96,12 +96,6 @@ type Views =
             let getPlayer =
                 let _player = new MediaPlayer(libVlc.Current)
 
-                _player.EndReached.Add(fun _ ->
-                    isPlaying.Set(false)
-                    _player.Stop()
-                    _player.Media.Dispose()
-                    _player.Media <- null)
-
                 _player.EncounteredError.Add(fun _ ->
                     printfn "EncounteredError"
                     isPlaying.Set(false)
@@ -192,9 +186,15 @@ type Views =
                             let! result = media.Parse(MediaParseOptions.ParseNetwork) |> Async.AwaitTask
 
                             if result = MediaParsedStatus.Done then
-                                isPlaying.Set(player.Current.Play(media))
+                                if media.SubItems.Count = 0 then
+                                    isPlaying.Set(player.Current.Play(media))
+                                else
+                                    isPlaying.Set(player.Current.Play(media.SubItems.Item(0)))
 
-                                printfn "Playing Url: %A" selectedItem.Current.Value.Url
+                                printfn "Playing Url: %A" player.Current.Media.Mrl
+
+                                media.MetaChanged.Add(fun e ->
+                                    printfn $"{e.MetadataType}: {media.Meta(e.MetadataType)}")
                             else
                                 printfn "Url: %A MediaParseStatus: %A" selectedItem.Current.Value.Url result
                         with ex ->
@@ -322,9 +322,7 @@ type Views =
                 match item with
                 | None ->
                     Border.create
-                        [ Border.child (
-                              TextBlock.create [ TextBlock.margin 20; TextBlock.text "No stations selected" ]
-                          ) ]
+                        [ Border.child (TextBlock.create [ TextBlock.margin 20; TextBlock.text "No station selected" ]) ]
                 | Some track -> getItem (track, 650.0)
 
             let getCountryItem (item: NameAndCount) =
