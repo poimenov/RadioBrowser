@@ -67,7 +67,7 @@ type Views =
             let searchText = ctx.useState ""
             //https://wiki.videolan.org/VLC_command-line_help/
             let libVlc =
-                ctx.useState (new LibVLC([| "--network-caching=3000"; "--http-reconnect" |]))
+                ctx.useState (new LibVLC([| "--network-caching=3000"; "--sout-livehttp-caching" |]))
 
             let countryHelper = ctx.useState (new CountryHelper())
 
@@ -378,144 +378,142 @@ type Views =
                 style.Setters.Add(Setter(ListBoxItem.MarginProperty, Thickness(2.0)))
                 style :> IStyle
 
+            let getSearchPanel =
+                Grid.create
+                    [ Grid.row 0
+                      Grid.columnDefinitions "371, *, Auto"
+                      Grid.children
+                          [ ComboBox.create
+                                [ Grid.column 0
+                                  ComboBox.horizontalAlignment HorizontalAlignment.Stretch
+                                  ComboBox.verticalAlignment VerticalAlignment.Stretch
+                                  ComboBox.margin 4
+                                  ComboBox.dataItems countries.Current
+                                  ComboBox.itemTemplate (
+                                      DataTemplateView<_>.create (fun (data: NameAndCount) -> getCountryItem data)
+                                  )
+                                  ComboBox.onSelectedItemChanged (fun item ->
+                                      (match box item with
+                                       | null -> None
+                                       | :? NameAndCount as i -> Some i
+                                       | _ -> failwith "Something went horribly wrong!")
+                                      |> selectedCountry.Set
+
+                                      let isCountrySelected =
+                                          selectedCountry.Current.IsSome
+                                          && selectedCountry.Current.Value.Stationcount > 0u
+
+                                      if isCountrySelected && not searchButtonEnabled.Current then
+                                          searchButtonEnabled.Set(true)
+                                      elif
+                                          not isCountrySelected
+                                          && searchButtonEnabled.Current
+                                          && String.IsNullOrWhiteSpace(searchText.Current)
+                                      then
+                                          searchButtonEnabled.Set(false)) ]
+                            TextBox.create
+                                [ Grid.column 1
+                                  TextBox.margin (1, 4, 1, 4)
+                                  TextBox.watermark "Search radio stations"
+                                  TextBox.horizontalAlignment HorizontalAlignment.Stretch
+                                  TextBox.onKeyDown (fun e ->
+                                      if e.Key = Key.Enter then
+                                          let textBox = e.Source :?> TextBox
+                                          searchText.Set(textBox.Text)
+                                          searchButtonEnabled.Set(false)
+                                          Async.StartImmediate doSearch)
+                                  TextBox.onTextChanged (fun e ->
+                                      (if not (String.IsNullOrWhiteSpace(e)) && not searchButtonEnabled.Current then
+                                           searchButtonEnabled.Set(true)
+                                       elif
+                                           String.IsNullOrWhiteSpace(e)
+                                           && searchButtonEnabled.Current
+                                           && selectedCountry.Current.IsNone
+                                       then
+                                           searchButtonEnabled.Set(false))) ]
+                            Button.create
+                                [ Grid.column 2
+                                  Button.margin 4
+                                  Button.content (
+                                      SymbolIcon.create
+                                          [ SymbolIcon.width 24
+                                            SymbolIcon.height 24
+                                            SymbolIcon.symbol Symbol.Search ]
+                                  )
+                                  ToolTip.tip "Search"
+                                  Button.isEnabled searchButtonEnabled.Current
+                                  Button.onClick (fun e ->
+                                      let button = e.Source :?> Button
+                                      let grid = button.Parent :?> Grid
+
+                                      let textBox =
+                                          grid.Children |> Seq.filter (fun c -> c :? TextBox) |> Seq.head :?> TextBox
+
+                                      searchText.Set(textBox.Text)
+                                      searchButtonEnabled.Set(false)
+                                      Async.StartImmediate doSearch) ] ] ]
+
+            let getSearchList =
+                ListBox.create
+                    [ Grid.row 1
+                      ListBox.background (SolidColorBrush(Colors.Transparent))
+                      ListBox.dataItems items.Current
+                      ListBox.margin 4
+                      ListBox.itemsPanel (FuncTemplate<Panel>(fun () -> WrapPanel()))
+                      ListBox.styles ([ getStyle ])
+                      ListBox.onSelectedItemChanged (fun item ->
+                          (match box item with
+                           | null -> None
+                           | :? StationInfo as i -> Some i
+                           | _ -> failwith "Something went horribly wrong!")
+                          |> selectedItem.Set
+
+                          if isPlaying.Current then
+                              Async.StartImmediate playStop
+
+                          playEnabled.Set true)
+                      ListBox.itemTemplate (
+                          DataTemplateView<_>.create (fun (data: StationInfo) -> getItem (data, 270.0))
+                      )
+                      ListBox.margin 4 ]
+
+            let getPlayerPanel =
+                Grid.create
+                    [ Grid.row 2
+                      Grid.columnDefinitions "*, Auto"
+                      Grid.children
+                          [ Panel.create
+                                [ Grid.column 0
+                                  Panel.height 70
+                                  Panel.horizontalAlignment HorizontalAlignment.Left
+                                  Panel.dataContext selectedItem.Current
+                                  Panel.children
+                                      [ ContentControl.create
+                                            [ ContentControl.content selectedItem.Current
+                                              ContentControl.contentTemplate (
+                                                  DataTemplateView<_>.create (fun (data: Option<StationInfo>) ->
+                                                      getSelectedItem data)
+                                              ) ] ] ]
+
+                            Button.create
+                                [ Grid.column 1
+                                  Button.margin (4, 20, 4, 4)
+                                  Button.content (
+                                      SymbolIcon.create
+                                          [ SymbolIcon.width 24
+                                            SymbolIcon.height 24
+                                            SymbolIcon.symbol (if isPlaying.Current then Symbol.Stop else Symbol.Play) ]
+                                  )
+                                  ToolTip.tip (if isPlaying.Current then "Stop" else "Play")
+                                  Button.isEnabled playEnabled.Current
+                                  Button.onClick (fun _ -> Async.StartImmediate playStop) ]
+
+                            ] ]
+
             Grid.create
                 [ Grid.rowDefinitions "Auto, *, Auto"
                   Grid.row 0
-                  Grid.children
-                      [ Grid.create
-                            [ Grid.row 0
-                              Grid.columnDefinitions "371, *, Auto"
-                              Grid.children
-                                  [ ComboBox.create
-                                        [ Grid.column 0
-                                          ComboBox.horizontalAlignment HorizontalAlignment.Stretch
-                                          ComboBox.verticalAlignment VerticalAlignment.Stretch
-                                          ComboBox.margin 4
-                                          ComboBox.dataItems countries.Current
-                                          ComboBox.itemTemplate (
-                                              DataTemplateView<_>.create (fun (data: NameAndCount) ->
-                                                  getCountryItem data)
-                                          )
-                                          ComboBox.onSelectedItemChanged (fun item ->
-                                              (match box item with
-                                               | null -> None
-                                               | :? NameAndCount as i -> Some i
-                                               | _ -> failwith "Something went horribly wrong!")
-                                              |> selectedCountry.Set
-
-                                              let isCountrySelected =
-                                                  selectedCountry.Current.IsSome
-                                                  && selectedCountry.Current.Value.Stationcount > 0u
-
-                                              if isCountrySelected && not searchButtonEnabled.Current then
-                                                  searchButtonEnabled.Set(true)
-                                              elif
-                                                  not isCountrySelected
-                                                  && searchButtonEnabled.Current
-                                                  && String.IsNullOrWhiteSpace(searchText.Current)
-                                              then
-                                                  searchButtonEnabled.Set(false)) ]
-                                    TextBox.create
-                                        [ Grid.column 1
-                                          TextBox.margin (1, 4, 1, 4)
-                                          TextBox.watermark "Search radio stations"
-                                          TextBox.horizontalAlignment HorizontalAlignment.Stretch
-                                          TextBox.onKeyDown (fun e ->
-                                              if e.Key = Key.Enter then
-                                                  let textBox = e.Source :?> TextBox
-                                                  searchText.Set(textBox.Text)
-                                                  searchButtonEnabled.Set(false)
-                                                  Async.StartImmediate doSearch)
-                                          TextBox.onTextChanged (fun e ->
-                                              (if
-                                                   not (String.IsNullOrWhiteSpace(e))
-                                                   && not searchButtonEnabled.Current
-                                               then
-                                                   searchButtonEnabled.Set(true)
-                                               elif
-                                                   String.IsNullOrWhiteSpace(e)
-                                                   && searchButtonEnabled.Current
-                                                   && selectedCountry.Current.IsNone
-                                               then
-                                                   searchButtonEnabled.Set(false))) ]
-                                    Button.create
-                                        [ Grid.column 2
-                                          Button.margin 4
-                                          Button.content (
-                                              SymbolIcon.create
-                                                  [ SymbolIcon.width 24
-                                                    SymbolIcon.height 24
-                                                    SymbolIcon.symbol Symbol.Search ]
-                                          )
-                                          ToolTip.tip "Search"
-                                          Button.isEnabled searchButtonEnabled.Current
-                                          Button.onClick (fun e ->
-                                              let button = e.Source :?> Button
-                                              let grid = button.Parent :?> Grid
-
-                                              let textBox =
-                                                  grid.Children |> Seq.filter (fun c -> c :? TextBox) |> Seq.head
-                                                  :?> TextBox
-
-                                              searchText.Set(textBox.Text)
-                                              searchButtonEnabled.Set(false)
-                                              Async.StartImmediate doSearch) ] ] ]
-
-                        ListBox.create
-                            [ Grid.row 1
-                              ListBox.background (SolidColorBrush(Colors.Transparent))
-                              ListBox.dataItems items.Current
-                              ListBox.margin 4
-                              ListBox.itemsPanel (FuncTemplate<Panel>(fun () -> WrapPanel()))
-                              ListBox.styles ([ getStyle ])
-                              ListBox.onSelectedItemChanged (fun item ->
-                                  (match box item with
-                                   | null -> None
-                                   | :? StationInfo as i -> Some i
-                                   | _ -> failwith "Something went horribly wrong!")
-                                  |> selectedItem.Set
-
-                                  if isPlaying.Current then
-                                      Async.StartImmediate playStop
-
-                                  playEnabled.Set true)
-                              ListBox.itemTemplate (
-                                  DataTemplateView<_>.create (fun (data: StationInfo) -> getItem (data, 270.0))
-                              )
-                              ListBox.margin 4 ]
-                        Grid.create
-                            [ Grid.row 2
-                              Grid.columnDefinitions "*, Auto"
-                              Grid.children
-                                  [ Panel.create
-                                        [ Grid.column 0
-                                          Panel.height 70
-                                          Panel.horizontalAlignment HorizontalAlignment.Left
-                                          Panel.dataContext selectedItem.Current
-                                          Panel.children
-                                              [ ContentControl.create
-                                                    [ ContentControl.content selectedItem.Current
-                                                      ContentControl.contentTemplate (
-                                                          DataTemplateView<_>.create
-                                                              (fun (data: Option<StationInfo>) -> getSelectedItem data)
-                                                      ) ] ] ]
-
-                                    Button.create
-                                        [ Grid.column 1
-                                          Button.margin (4, 20, 4, 4)
-                                          Button.content (
-                                              SymbolIcon.create
-                                                  [ SymbolIcon.width 24
-                                                    SymbolIcon.height 24
-                                                    SymbolIcon.symbol (
-                                                        if isPlaying.Current then Symbol.Stop else Symbol.Play
-                                                    ) ]
-                                          )
-                                          ToolTip.tip (if isPlaying.Current then "Stop" else "Play")
-                                          Button.isEnabled playEnabled.Current
-                                          Button.onClick (fun _ -> Async.StartImmediate playStop) ]
-
-                                    ] ] ] ])
+                  Grid.children [ getSearchPanel; getSearchList; getPlayerPanel ] ])
 
 type MainWindow() as this =
     inherit HostWindow()

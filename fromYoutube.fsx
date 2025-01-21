@@ -6,7 +6,8 @@
 #r "nuget: Avalonia.FuncUI"
 #r "nuget: FSharp.Control.TaskSeq"
 #r "nuget: FluentIcons.Avalonia"
-#r "nuget: YoutubeExplode"
+//#r "nuget: YoutubeExplode"
+#r "nuget: YoutubeExplode, 6.4.3"
 #r "nuget: FFMpegCore"
 #r "nuget: AsyncImageLoader.Avalonia"
 
