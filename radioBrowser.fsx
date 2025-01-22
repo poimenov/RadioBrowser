@@ -36,6 +36,32 @@ open Avalonia.Styling
 open FluentIcons.Common
 open PSC.CSharp.Library.CountryData
 open Avalonia.Svg
+open System.Text.Json
+
+[<Serializable>]
+type public Station
+    (
+        id: Guid,
+        name: string,
+        url: Uri,
+        imageUrl: string,
+        countryCode: string,
+        languages: string,
+        tags: string,
+        codec: string,
+        bitrate: string,
+        isFavorite: bool
+    ) =
+    member val Id = id with get, set
+    member val Name = name with get, set
+    member val Url = url with get, set
+    member val ImageUrl = imageUrl with get, set
+    member val CountryCode = countryCode with get, set
+    member val Languages = languages with get, set
+    member val Tags = tags with get, set
+    member val Codec = codec with get, set
+    member val Bitrate = bitrate with get, set
+    member val IsFavorite = isFavorite with get, set
 
 [<AutoOpen>]
 module SymbolIcon =
@@ -49,17 +75,23 @@ module SymbolIcon =
             AttrBuilder<'t>
                 .CreateProperty<Symbol>(SymbolIcon.SymbolProperty, value, ValueNone)
 
+        static member iconVariant<'t when 't :> SymbolIcon>(value: IconVariant) : IAttr<'t> =
+            AttrBuilder<'t>
+                .CreateProperty<IconVariant>(SymbolIcon.IconVariantProperty, value, ValueNone)
+
 [<AbstractClass; Sealed>]
 type Views =
 
     static member main() =
         Component(fun ctx ->
-            let items = ctx.useState<ObservableCollection<StationInfo>> (ObservableCollection())
+            let items = ctx.useState<ObservableCollection<Station>> (ObservableCollection())
+
+            let favItems = ctx.useState<ObservableCollection<Station>> (ObservableCollection())
 
             let countries =
                 ctx.useState<ObservableCollection<NameAndCount>> (ObservableCollection())
 
-            let selectedItem = ctx.useState<Option<StationInfo>> None
+            let selectedItem = ctx.useState<Option<Station>> None
             let selectedCountry = ctx.useState<Option<NameAndCount>> None
             let searchButtonEnabled = ctx.useState false
             let playEnabled = ctx.useState false
@@ -73,10 +105,47 @@ type Views =
 
             let limit = 100u
 
+            let convert (item: StationInfo, isFavorite: bool) =
+                let imageUrl =
+                    if item.Favicon <> null then
+                        item.Favicon.AbsoluteUri
+                    else
+                        null
+
+                let languages = item.Language |> String.concat ", "
+                let tags = item.Tags |> String.concat ", "
+
+                new Station(
+                    item.StationUuid,
+                    item.Name,
+                    item.Url,
+                    imageUrl,
+                    item.CountryCode,
+                    languages,
+                    tags,
+                    item.Codec.ToString(),
+                    item.Bitrate.ToString(),
+                    isFavorite
+                )
+
             let getDefaultStations =
                 async {
                     let client = RadioBrowserClient()
                     return! client.Stations.GetByVotesAsync(limit) |> Async.AwaitTask
+                }
+
+            let favoritesPath = Path.Combine(__SOURCE_DIRECTORY__, "favorites.json")
+
+            let getFavStations =
+                async {
+                    if File.Exists(favoritesPath) then
+                        let! jsonFavorites = File.ReadAllTextAsync(favoritesPath) |> Async.AwaitTask
+
+                        let favorites = JsonSerializer.Deserialize<Station list> jsonFavorites
+
+                        return favorites
+                    else
+                        return Seq.empty |> Seq.toList
                 }
 
             let getCountries =
@@ -110,17 +179,42 @@ type Views =
 
             let player = ctx.useState (getPlayer)
 
+            let isStationFavorite (item: Station) =
+                (favItems.Current |> Seq.exists (fun x -> x.Id = item.Id))
+
+            let isOptionStationFavorite (item: Option<Station>) =
+                match item with
+                | None -> false
+                | Some item -> isStationFavorite item
+
             ctx.useEffect (
                 handler =
                     (fun _ ->
                         ctx.control.Unloaded.Add(fun _ ->
+                            let favText =
+                                favItems.Current |> Seq.toList |> JsonSerializer.Serialize<Station list>
+
+                            File.WriteAllText(favoritesPath, favText)
                             player.Current.Stop()
                             player.Current.Dispose()
                             libVlc.Current.Dispose())
 
                         Async.StartWithContinuations(
-                            getDefaultStations,
-                            (fun (stations) -> (stations |> Seq.iter (fun x -> items.Current.Add(x)))),
+                            getFavStations,
+                            (fun (stations) ->
+                                (stations |> Seq.iter (fun x -> favItems.Current.Add(x))
+
+                                 Async.StartWithContinuations(
+                                     getDefaultStations,
+                                     (fun (stations) ->
+                                         (stations
+                                          |> Seq.iter (fun x ->
+                                              let item = convert (x, false)
+                                              item.IsFavorite <- isStationFavorite item
+                                              items.Current.Add(item)))),
+                                     (fun ex -> (printfn "%A" ex)),
+                                     (fun _ -> ())
+                                 ))),
                             (fun ex -> (printfn "%A" ex)),
                             (fun _ -> ())
                         )
@@ -167,7 +261,11 @@ type Views =
                             else
                                 client.Search.AdvancedAsync(options) |> Async.AwaitTask
 
-                        results |> Seq.iter (fun x -> items.Current.Add(x))
+                        results
+                        |> Seq.iter (fun x ->
+                            let item = convert (x, false)
+                            item.IsFavorite <- isStationFavorite item
+                            items.Current.Add(item))
                     with ex ->
                         printfn "%A" ex
 
@@ -240,20 +338,17 @@ type Views =
 
                 svgImage
 
-            let getItem (item: StationInfo, textWidth: double) =
+            let getItem (item: Station, textWidth: double) =
                 let defaultImg = new Bitmap(Path.Combine(__SOURCE_DIRECTORY__, "img/radio.png"))
 
                 let img =
                     async {
-                        if item.Favicon = null || String.IsNullOrEmpty item.Favicon.AbsoluteUri then
+                        if item.ImageUrl = null then
                             return defaultImg
                         else
-                            return!
-                                ImageLoader.AsyncImageLoader.ProvideImageAsync(item.Favicon.AbsoluteUri)
-                                |> Async.AwaitTask
+                            return! ImageLoader.AsyncImageLoader.ProvideImageAsync(item.ImageUrl) |> Async.AwaitTask
                     }
 
-                let languages = item.Language |> String.concat ", "
                 let svgImage = getSvgImageBycountryCode item.CountryCode
 
                 let countryName =
@@ -301,32 +396,39 @@ type Views =
                                                                     Image.margin (2, 0, 6, 0)
                                                                     Image.width 22
                                                                     Image.height 16 ]
+                                                              SymbolIcon.create
+                                                                  [ SymbolIcon.symbol Symbol.Star
+                                                                    SymbolIcon.width 16
+                                                                    SymbolIcon.height 16
+                                                                    SymbolIcon.margin (2, 0, 2, 0)
+                                                                    SymbolIcon.iconVariant (
+                                                                        if isStationFavorite (item) then
+                                                                            IconVariant.Filled
+                                                                        else
+                                                                            IconVariant.Regular
+                                                                    ) ]
                                                               TextBlock.create
                                                                   [ TextBlock.text
-                                                                        $"{item.Codec} : {item.Bitrate} kbps {languages}"
+                                                                        $"{item.Codec} : {item.Bitrate} kbps {item.Languages}"
                                                                     TextBlock.textTrimming
                                                                         TextTrimming.CharacterEllipsis
                                                                     TextBlock.textWrapping TextWrapping.NoWrap
-                                                                    TextBlock.width (textWidth - 30.0)
+                                                                    TextBlock.width (textWidth - 50.0)
                                                                     TextBlock.fontSize 14.0 ] ] ]
                                                   TextBlock.create
-                                                      [ TextBlock.text (
-                                                            item.Tags
-                                                            |> Seq.map (fun s -> s.Trim())
-                                                            |> String.concat ", "
-                                                        )
+                                                      [ TextBlock.text item.Tags
                                                         TextBlock.textTrimming TextTrimming.CharacterEllipsis
                                                         TextBlock.textWrapping TextWrapping.NoWrap
                                                         TextBlock.width textWidth
                                                         TextBlock.fontSize 12.0 ] ] ] ] ]
                       ) ]
 
-            let getSelectedItem (item: Option<StationInfo>) =
+            let getSelectedItem (item: Option<Station>) =
                 match item with
                 | None ->
                     Border.create
                         [ Border.child (TextBlock.create [ TextBlock.margin 20; TextBlock.text "No station selected" ]) ]
-                | Some track -> getItem (track, 650.0)
+                | Some track -> getItem (track, 620.0)
 
             let getCountryItem (item: NameAndCount) =
                 let count =
@@ -367,16 +469,6 @@ type Views =
                                 [ TextBlock.text (count)
                                   TextBlock.width 50
                                   TextBlock.textAlignment TextAlignment.Right ] ] ]
-
-            let getStyle =
-                let style = new Style(fun x -> x.OfType(typeof<ListBoxItem>))
-                style.Setters.Add(Setter(ListBoxItem.PaddingProperty, Thickness(2.0)))
-                style.Setters.Add(Setter(ListBoxItem.CornerRadiusProperty, CornerRadius(5.0)))
-                style.Setters.Add(Setter(ListBoxItem.WidthProperty, 360.0))
-                style.Setters.Add(Setter(ListBoxItem.BorderBrushProperty, Brushes.Gray))
-                style.Setters.Add(Setter(ListBoxItem.BorderThicknessProperty, Thickness(1.0)))
-                style.Setters.Add(Setter(ListBoxItem.MarginProperty, Thickness(2.0)))
-                style :> IStyle
 
             let getSearchPanel =
                 Grid.create
@@ -453,18 +545,16 @@ type Views =
                                       searchButtonEnabled.Set(false)
                                       Async.StartImmediate doSearch) ] ] ]
 
-            let getSearchList =
+            let getStationsListBox (source: ObservableCollection<Station>) =
                 ListBox.create
                     [ Grid.row 1
                       ListBox.background (SolidColorBrush(Colors.Transparent))
-                      ListBox.dataItems items.Current
-                      ListBox.margin 4
+                      ListBox.dataItems source
                       ListBox.itemsPanel (FuncTemplate<Panel>(fun () -> WrapPanel()))
-                      ListBox.styles ([ getStyle ])
                       ListBox.onSelectedItemChanged (fun item ->
                           (match box item with
                            | null -> None
-                           | :? StationInfo as i -> Some i
+                           | :? Station as i -> Some i
                            | _ -> failwith "Something went horribly wrong!")
                           |> selectedItem.Set
 
@@ -472,15 +562,28 @@ type Views =
                               Async.StartImmediate playStop
 
                           playEnabled.Set true)
-                      ListBox.itemTemplate (
-                          DataTemplateView<_>.create (fun (data: StationInfo) -> getItem (data, 270.0))
-                      )
+                      ListBox.itemTemplate (DataTemplateView<_>.create (fun (data: Station) -> getItem (data, 270.0)))
                       ListBox.margin 4 ]
+
+            let addRemoveFavorite (item: Station) =
+                if isStationFavorite item then
+                    let itemToRemove = favItems.Current |> Seq.find (fun x -> x.Id = item.Id)
+                    itemToRemove.IsFavorite <- false
+                    favItems.Current.Remove(itemToRemove) |> ignore
+                    item.IsFavorite <- false
+                else
+                    item.IsFavorite <- true
+                    favItems.Current.Add(item)
+
+            let getAddToFavoriteBtnEnabled (item: Option<Station>) =
+                match item with
+                | Some i -> true
+                | None -> false
 
             let getPlayerPanel =
                 Grid.create
                     [ Grid.row 2
-                      Grid.columnDefinitions "*, Auto"
+                      Grid.columnDefinitions "*, Auto, Auto"
                       Grid.children
                           [ Panel.create
                                 [ Grid.column 0
@@ -491,12 +594,37 @@ type Views =
                                       [ ContentControl.create
                                             [ ContentControl.content selectedItem.Current
                                               ContentControl.contentTemplate (
-                                                  DataTemplateView<_>.create (fun (data: Option<StationInfo>) ->
+                                                  DataTemplateView<_>.create (fun (data: Option<Station>) ->
                                                       getSelectedItem data)
                                               ) ] ] ]
 
                             Button.create
                                 [ Grid.column 1
+                                  Button.margin (4, 20, 4, 4)
+                                  Button.isEnabled (getAddToFavoriteBtnEnabled (selectedItem.Current))
+                                  Button.onClick (fun _ -> addRemoveFavorite (selectedItem.Current.Value))
+                                  Button.content (
+                                      SymbolIcon.create
+                                          [ SymbolIcon.width 24
+                                            SymbolIcon.height 24
+                                            SymbolIcon.symbol Symbol.Star
+                                            ToolTip.tip (
+                                                if isOptionStationFavorite selectedItem.Current then
+                                                    "Remove from favorites"
+                                                else
+                                                    "Add to favorites"
+                                            )
+                                            SymbolIcon.iconVariant (
+                                                if isOptionStationFavorite selectedItem.Current then
+                                                    IconVariant.Filled
+                                                else
+                                                    IconVariant.Regular
+                                            ) ]
+
+                                  ) ]
+
+                            Button.create
+                                [ Grid.column 2
                                   Button.margin (4, 20, 4, 4)
                                   Button.content (
                                       SymbolIcon.create
@@ -510,19 +638,42 @@ type Views =
 
                             ] ]
 
-            Grid.create
-                [ Grid.rowDefinitions "Auto, *, Auto"
-                  Grid.row 0
-                  Grid.children [ getSearchPanel; getSearchList; getPlayerPanel ] ])
+            let searchPageContent =
+                Grid.create
+                    [ Grid.rowDefinitions "Auto,*"
+                      Grid.children [ getSearchPanel; getStationsListBox (items.Current) ] ]
+
+            let getTabPanel =
+                TabControl.create
+                    [ Grid.row 0
+                      TabControl.tabStripPlacement Dock.Top
+                      TabControl.viewItems
+                          [ TabItem.create [ TabItem.header "Search"; TabItem.content searchPageContent ]
+                            TabItem.create
+                                [ TabItem.header "Favorites"
+                                  TabItem.content (getStationsListBox (favItems.Current)) ] ] ]
+
+            Grid.create [ Grid.rowDefinitions "*, Auto"; Grid.children [ getTabPanel; getPlayerPanel ] ])
 
 type MainWindow() as this =
     inherit HostWindow()
 
     do
+        let getListBoxItemStyle =
+            let style = new Style(fun x -> x.OfType(typeof<ListBoxItem>))
+            style.Setters.Add(Setter(ListBoxItem.PaddingProperty, Thickness(2.0)))
+            style.Setters.Add(Setter(ListBoxItem.CornerRadiusProperty, CornerRadius(5.0)))
+            style.Setters.Add(Setter(ListBoxItem.WidthProperty, 360.0))
+            style.Setters.Add(Setter(ListBoxItem.BorderBrushProperty, Brushes.Gray))
+            style.Setters.Add(Setter(ListBoxItem.BorderThicknessProperty, Thickness(1.0)))
+            style.Setters.Add(Setter(ListBoxItem.MarginProperty, Thickness(2.0)))
+            style :> IStyle
+
         base.Title <- "Radio Browser"
         base.Width <- 780.0
-        base.Height <- 522.0
+        base.Height <- 575.0
         base.Icon <- new WindowIcon(new Bitmap(Path.Combine(__SOURCE_DIRECTORY__, "img/Fsharp_logo.png")))
+        base.Styles.Add(getListBoxItemStyle)
         this.Content <- Views.main ()
 
 type App() =
