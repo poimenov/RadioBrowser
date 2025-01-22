@@ -85,7 +85,6 @@ type Views =
     static member main() =
         Component(fun ctx ->
             let items = ctx.useState<ObservableCollection<Station>> (ObservableCollection())
-
             let favItems = ctx.useState<ObservableCollection<Station>> (ObservableCollection())
 
             let countries =
@@ -574,6 +573,8 @@ type Views =
                 else
                     item.IsFavorite <- true
                     favItems.Current.Add(item)
+
+                selectedItem.Set(Some item)
 
             let getAddToFavoriteBtnEnabled (item: Option<Station>) =
                 match item with
