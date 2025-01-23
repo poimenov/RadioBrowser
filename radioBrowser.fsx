@@ -169,10 +169,17 @@ type Views =
 
                 _player.EncounteredError.Add(fun _ ->
                     printfn "EncounteredError"
-                    isPlaying.Set(false)
                     _player.Stop()
                     _player.Media.Dispose()
                     _player.Media <- null)
+
+                _player.Playing.Add(fun _ ->
+                    isPlaying.Set(true)
+                    playEnabled.Set(true))
+
+                _player.Stopped.Add(fun _ ->
+                    isPlaying.Set(false)
+                    playEnabled.Set(true))
 
                 _player
 
@@ -197,6 +204,8 @@ type Views =
                             player.Current.Stop()
                             player.Current.Dispose()
                             libVlc.Current.Dispose())
+
+                        Core.Initialize()
 
                         Async.StartWithContinuations(
                             getFavStations,
@@ -287,28 +296,28 @@ type Views =
 
                             if result = MediaParsedStatus.Done then
                                 if media.SubItems.Count = 0 then
-                                    isPlaying.Set(player.Current.Play(media))
+                                    player.Current.Play(media) |> ignore
                                 else
-                                    isPlaying.Set(player.Current.Play(media.SubItems.Item(0)))
+                                    player.Current.Play(media.SubItems.Item(0)) |> ignore
 
                                 printfn "Playing Url: %A" player.Current.Media.Mrl
 
                                 media.MetaChanged.Add(fun e ->
                                     printfn $"{e.MetadataType}: {media.Meta(e.MetadataType)}")
                             else
+                                playEnabled.Set(true)
                                 printfn "Url: %A MediaParseStatus: %A" selectedItem.Current.Value.Url result
                         with ex ->
                             printfn "%A" ex
-                            isPlaying.Set(false)
-
-                        playEnabled.Set(true)
                 }
 
             let playStop =
                 async {
-                    if isPlaying.Current then
+                    if player.Current.IsPlaying then
+                        playEnabled.Set(false)
                         player.Current.Stop()
-                        isPlaying.Set(false)
+                        player.Current.Media.Dispose()
+                        player.Current.Media <- null
                     else
                         play |> Async.Start
                 }
@@ -551,16 +560,16 @@ type Views =
                       ListBox.dataItems source
                       ListBox.itemsPanel (FuncTemplate<Panel>(fun () -> WrapPanel()))
                       ListBox.onSelectedItemChanged (fun item ->
-                          (match box item with
-                           | null -> None
-                           | :? Station as i -> Some i
-                           | _ -> failwith "Something went horribly wrong!")
+                          match box item with
+                          | null -> None
+                          | :? Station as i -> Some i
+                          | _ -> failwith "Something went horribly wrong!"
                           |> selectedItem.Set
 
                           if isPlaying.Current then
                               Async.StartImmediate playStop
-
-                          playEnabled.Set true)
+                          else
+                              playEnabled.Set(true))
                       ListBox.itemTemplate (DataTemplateView<_>.create (fun (data: Station) -> getItem (data, 270.0)))
                       ListBox.margin 4 ]
 
