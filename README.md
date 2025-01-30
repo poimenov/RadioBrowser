@@ -1,15 +1,14 @@
 # RadioBrowser
 
-Script for [radio browser](https://www.radio-browser.info/) (radioBrowser.fsx)
-
 Search screen:
 ![Screenshot of the script UI](/img/radioBrowser.Search.jpg)
+
 Favorites screen:
 ![Screenshot of the script UI](/img/radioBrowser.Favorites.jpg)
 
 ## Description
 
-Scripts for playing radio stations from [radio browser](https://www.radio-browser.info/)
+Script for playing radio stations from [radio browser](https://www.radio-browser.info/)
 
 ### Prerequisites
 
@@ -20,7 +19,7 @@ FFMpeg
 ### Installation
 
 Clone the repo:
-git clone https://github.com/poimenov/MusicSearchDownload.git
+git clone https://github.com/poimenov/RadioBrowser.git
 
 To run:
 
