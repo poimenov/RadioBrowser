@@ -1,13 +1,4 @@
-# MusicSearchDownload
-
-Script for searching and downloading music from z3.fm (sript.fsx)
-![Screenshot of the script UI](/img/screen.jpg)
-
-Script for searching and downloading music from youtube (fromYoutube.fsx)
-![Screenshot of the script UI](/img/screen1.jpg)
-
-Script for searching and downloading music from spotify (fromSpotify.fsx)
-![Screenshot of the script UI](/img/screen2.jpg)
+# RadioBrowser
 
 Script for [radio browser](https://www.radio-browser.info/) (radioBrowser.fsx)
 
@@ -18,7 +9,7 @@ Favorites screen:
 
 ## Description
 
-Scripts for searching and downloading music
+Scripts for playing radio stations from [radio browser](https://www.radio-browser.info/)
 
 ### Prerequisites
 
@@ -34,7 +25,7 @@ git clone https://github.com/poimenov/MusicSearchDownload.git
 To run:
 
 ```bash
-dotnet fsi script.fsx
+dotnet fsi radioBrowser.fsx
 ```
 
 If you run into problems in linux, you may need to install vlc and vlc dev related libraries
