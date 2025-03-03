@@ -36,6 +36,8 @@ open Avalonia.Styling
 open FluentIcons.Common
 open PSC.CSharp.Library.CountryData
 open Avalonia.Svg
+open System.Diagnostics
+open System.Runtime.InteropServices
 open System.Text.Json
 
 [<Serializable>]
@@ -62,6 +64,12 @@ type public Station
     member val Codec = codec with get, set
     member val Bitrate = bitrate with get, set
     member val IsFavorite = isFavorite with get, set
+
+type Platform =
+    | Windows
+    | Linux
+    | MacOS
+    | Unknown
 
 [<AutoOpen>]
 module SymbolIcon =
@@ -96,6 +104,7 @@ type Views =
             let playEnabled = ctx.useState false
             let isPlaying = ctx.useState false
             let searchText = ctx.useState ""
+            let nowPlaying = ctx.useState<string option> None
             //https://wiki.videolan.org/VLC_command-line_help/
             let libVlc =
                 ctx.useState (new LibVLC([| "--network-caching=3000"; "--sout-livehttp-caching" |]))
@@ -103,6 +112,44 @@ type Views =
             let countryHelper = ctx.useState (new CountryHelper())
 
             let limit = 100u
+
+            let getPlatform =
+                if RuntimeInformation.IsOSPlatform(OSPlatform.Windows) then
+                    Windows
+                elif RuntimeInformation.IsOSPlatform(OSPlatform.Linux) then
+                    Linux
+                elif RuntimeInformation.IsOSPlatform(OSPlatform.OSX) then
+                    MacOS
+                else
+                    Unknown
+
+            let runCommand (command: string, arguments: string) =
+                let psi = new ProcessStartInfo(command)
+                psi.RedirectStandardOutput <- false
+                psi.UseShellExecute <- false
+                psi.CreateNoWindow <- false
+                psi.Arguments <- arguments
+
+                let p = new Process()
+                p.StartInfo <- psi
+                p.Start() |> ignore
+
+            let openUrl (url: string) =
+                match getPlatform with
+                | Windows -> runCommand ("cmd", $"/c start {url}")
+                | Linux -> runCommand ("xdg-open", url)
+                | MacOS -> runCommand ("open", url)
+                | _ -> ()
+
+            let searchInYoutube (searchText: string option) =
+                match searchText with
+                | None -> ()
+                | Some s ->
+                    openUrl (
+                        "https://www.youtube.com/results?search_query="
+                        + System.Web.HttpUtility.UrlEncode(s)
+                    )
+
 
             let convert (item: StationInfo, isFavorite: bool) =
                 let imageUrl =
@@ -291,6 +338,7 @@ type Views =
                         playEnabled.Set(false)
 
                         try
+                            nowPlaying.Set None
                             let media = new Media(libVlc.Current, selectedItem.Current.Value.Url)
                             let! result = media.Parse(MediaParseOptions.ParseNetwork) |> Async.AwaitTask
 
@@ -303,6 +351,9 @@ type Views =
                                 printfn "Playing Url: %A" player.Current.Media.Mrl
 
                                 media.MetaChanged.Add(fun e ->
+                                    if e.MetadataType = MetadataType.NowPlaying then
+                                        nowPlaying.Set(Some(media.Meta(e.MetadataType)))
+
                                     printfn $"{e.MetadataType}: {media.Meta(e.MetadataType)}")
                             else
                                 playEnabled.Set(true)
@@ -436,7 +487,7 @@ type Views =
                 | None ->
                     Border.create
                         [ Border.child (TextBlock.create [ TextBlock.margin 20; TextBlock.text "No station selected" ]) ]
-                | Some track -> getItem (track, 620.0)
+                | Some track -> getItem (track, 592.0)
 
             let getCountryItem (item: NameAndCount) =
                 let count =
@@ -593,7 +644,7 @@ type Views =
             let getPlayerPanel =
                 Grid.create
                     [ Grid.row 2
-                      Grid.columnDefinitions "*, Auto, Auto"
+                      Grid.columnDefinitions "*, Auto, Auto, Auto"
                       Grid.children
                           [ Panel.create
                                 [ Grid.column 0
@@ -610,6 +661,27 @@ type Views =
 
                             Button.create
                                 [ Grid.column 1
+                                  Button.margin (4, 20, 4, 4)
+                                  ToolTip.tip (
+                                      match nowPlaying.Current with
+                                      | None -> "Search in youtube"
+                                      | Some s -> $"Search in youtube: {s}"
+                                  )
+                                  Button.onClick (fun _ -> searchInYoutube (nowPlaying.Current))
+                                  Button.content (
+                                      SymbolIcon.create
+                                          [ SymbolIcon.width 24
+                                            SymbolIcon.height 24
+                                            SymbolIcon.symbol Symbol.VideoClip ]
+                                  )
+                                  Button.isEnabled (
+                                      match nowPlaying.Current with
+                                      | None -> false
+                                      | Some s -> not (String.IsNullOrWhiteSpace(s))
+                                  ) ]
+
+                            Button.create
+                                [ Grid.column 2
                                   Button.margin (4, 20, 4, 4)
                                   Button.isEnabled (getAddToFavoriteBtnEnabled (selectedItem.Current))
                                   Button.onClick (fun _ -> addRemoveFavorite (selectedItem.Current.Value))
@@ -634,7 +706,7 @@ type Views =
                                   ) ]
 
                             Button.create
-                                [ Grid.column 2
+                                [ Grid.column 3
                                   Button.margin (4, 20, 4, 4)
                                   Button.content (
                                       SymbolIcon.create
