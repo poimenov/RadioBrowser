@@ -111,7 +111,8 @@ type Views =
 
             let countryHelper = ctx.useState (new CountryHelper())
 
-            let limit = 100u
+            let chunk = 100u
+            let maxCount = 500
 
             let getPlatform =
                 if RuntimeInformation.IsOSPlatform(OSPlatform.Windows) then
@@ -177,7 +178,7 @@ type Views =
             let getDefaultStations =
                 async {
                     let client = RadioBrowserClient()
-                    return! client.Stations.GetByVotesAsync(limit) |> Async.AwaitTask
+                    return! client.Stations.GetByVotesAsync(chunk) |> Async.AwaitTask
                 }
 
             let favoritesPath = Path.Combine(__SOURCE_DIRECTORY__, "favorites.json")
@@ -283,51 +284,73 @@ type Views =
                 triggers = [ EffectTrigger.AfterInit ]
             )
 
-            let doSearch =
+            let getSearchOptions (offset: Nullable<uint32>) =
+                let opt = new AdvancedSearchOptions()
+                opt.Limit <- chunk
+                opt.Offset <- offset
+
+                if not (String.IsNullOrEmpty(searchText.Current)) then
+                    opt.Name <- searchText.Current
+
+                if
+                    selectedCountry.Current.IsSome
+                    && selectedCountry.Current.Value.Stationcount > 0u
+                then
+                    let country =
+                        countryHelper.Current.GetCountryByCode(selectedCountry.Current.Value.Name)
+
+                    opt.Country <- country.CountryName
+
+                opt
+
+            let rec doSearchWithOptions (options: AdvancedSearchOptions) =
                 async {
-                    searchButtonEnabled.Set(false)
-
                     try
-                        items.Current.Clear()
                         let client = RadioBrowserClient()
-
-                        let options =
-                            let opt = new AdvancedSearchOptions()
-                            opt.Limit <- limit
-                            opt.Offset <- 0u
-
-                            if not (String.IsNullOrEmpty(searchText.Current)) then
-                                opt.Name <- searchText.Current
-
-                            if
-                                selectedCountry.Current.IsSome
-                                && selectedCountry.Current.Value.Stationcount > 0u
-                            then
-                                let country =
-                                    countryHelper.Current.GetCountryByCode(selectedCountry.Current.Value.Name)
-
-                                opt.Country <- country.CountryName
-
-                            opt
-
-                        let! results =
-                            if (String.IsNullOrEmpty(options.Name) && String.IsNullOrEmpty(options.Country)) then
-                                client.Stations.GetByVotesAsync(limit) |> Async.AwaitTask
-                            else
-                                client.Search.AdvancedAsync(options) |> Async.AwaitTask
+                        let! results = client.Search.AdvancedAsync(options) |> Async.AwaitTask
 
                         results
                         |> Seq.iter (fun x ->
                             let item = convert (x, false)
                             item.IsFavorite <- isStationFavorite item
                             items.Current.Add(item))
+
+                        if results.Count = Convert.ToInt32(chunk) && items.Current.Count < maxCount then
+                            options.Offset <- options.Offset.Value + chunk
+                            doSearchWithOptions (options) |> Async.Start
+                        else
+                            searchButtonEnabled.Set(true)
+                            printfn $"Finished. Count = {items.Current.Count}"
                     with ex ->
                         printfn "%A" ex
+                }
 
-                    searchButtonEnabled.Set(true)
+            let doSearch =
+                async {
+                    searchButtonEnabled.Set(false)
 
                     if not isPlaying.Current then
                         playEnabled.Set(false)
+
+                    try
+                        items.Current.Clear()
+                        let options = getSearchOptions (Nullable.op_Implicit (0u))
+
+                        if (String.IsNullOrEmpty(options.Name) && String.IsNullOrEmpty(options.Country)) then
+                            let client = RadioBrowserClient()
+                            let! results = client.Stations.GetByVotesAsync(chunk) |> Async.AwaitTask
+
+                            results
+                            |> Seq.iter (fun x ->
+                                let item = convert (x, false)
+                                item.IsFavorite <- isStationFavorite item
+                                items.Current.Add(item))
+
+                            searchButtonEnabled.Set(true)
+                        else
+                            doSearchWithOptions (options) |> Async.Start
+                    with ex ->
+                        printfn "%A" ex
                 }
 
             let play =
