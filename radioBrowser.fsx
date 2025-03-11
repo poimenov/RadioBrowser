@@ -733,6 +733,7 @@ type Views =
                             Button.create
                                 [ Grid.column 3
                                   Button.margin (4, 20, 4, 4)
+                                  Button.tip ($"{volume.Current} %%")
                                   Button.content (
                                       SymbolIcon.create
                                           [ SymbolIcon.width 24
@@ -756,7 +757,8 @@ type Views =
                                                                   Slider.isSnapToTickEnabled true
                                                                   Slider.value volume.Current
                                                                   Slider.onValueChanged (fun v ->
-                                                                      player.Current.Volume <- Convert.ToInt32 v)
+                                                                      volume.Set(Convert.ToInt32 v)
+                                                                      player.Current.Volume <- volume.Current)
                                                                   Slider.tickPlacement TickPlacement.Outside ] ] ]
                                             ) ]
 
