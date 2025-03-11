@@ -105,6 +105,7 @@ type Views =
             let isPlaying = ctx.useState false
             let searchText = ctx.useState ""
             let nowPlaying = ctx.useState<string option> None
+            let volume = ctx.useState 50
             //https://wiki.videolan.org/VLC_command-line_help/
             let libVlc =
                 ctx.useState (new LibVLC([| "--network-caching=3000"; "--sout-livehttp-caching" |]))
@@ -214,6 +215,7 @@ type Views =
 
             let getPlayer =
                 let _player = new MediaPlayer(libVlc.Current)
+                _player.Volume <- volume.Current
 
                 _player.EncounteredError.Add(fun _ ->
                     printfn "EncounteredError"
@@ -510,7 +512,7 @@ type Views =
                 | None ->
                     Border.create
                         [ Border.child (TextBlock.create [ TextBlock.margin 20; TextBlock.text "No station selected" ]) ]
-                | Some track -> getItem (track, 592.0)
+                | Some track -> getItem (track, 564.0)
 
             let getCountryItem (item: NameAndCount) =
                 let count =
@@ -667,7 +669,7 @@ type Views =
             let getPlayerPanel =
                 Grid.create
                     [ Grid.row 2
-                      Grid.columnDefinitions "*, Auto, Auto, Auto"
+                      Grid.columnDefinitions "*, Auto, Auto, Auto, Auto"
                       Grid.children
                           [ Panel.create
                                 [ Grid.column 0
@@ -730,6 +732,38 @@ type Views =
 
                             Button.create
                                 [ Grid.column 3
+                                  Button.margin (4, 20, 4, 4)
+                                  Button.content (
+                                      SymbolIcon.create
+                                          [ SymbolIcon.width 24
+                                            SymbolIcon.height 24
+                                            SymbolIcon.symbol Symbol.Speaker2 ]
+                                  )
+                                  Button.flyout (
+                                      Flyout.create
+                                          [ Flyout.placement PlacementMode.Top
+                                            Flyout.content (
+                                                Panel.create
+                                                    [ Panel.width 50
+                                                      Panel.height 200
+                                                      Panel.children
+                                                          [ Slider.create
+                                                                [ Slider.orientation Orientation.Vertical
+                                                                  Slider.height 200
+                                                                  Slider.minimum 0.0
+                                                                  Slider.maximum 100.0
+                                                                  Slider.tickFrequency 10.0
+                                                                  Slider.isSnapToTickEnabled true
+                                                                  Slider.value volume.Current
+                                                                  Slider.onValueChanged (fun v ->
+                                                                      player.Current.Volume <- Convert.ToInt32 v)
+                                                                  Slider.tickPlacement TickPlacement.Outside ] ] ]
+                                            ) ]
+
+                                  ) ]
+
+                            Button.create
+                                [ Grid.column 4
                                   Button.margin (4, 20, 4, 4)
                                   Button.content (
                                       SymbolIcon.create
