@@ -87,6 +87,21 @@ module SymbolIcon =
             AttrBuilder<'t>
                 .CreateProperty<IconVariant>(SymbolIcon.IconVariantProperty, value, ValueNone)
 
+[<AutoOpen>]
+module AutoCompleteBox =
+    open Avalonia.FuncUI.Types
+    open Avalonia.FuncUI.Builder
+    open System.Collections
+
+    let create (attrs: IAttr<AutoCompleteBox> list) : IView<AutoCompleteBox> =
+        ViewBuilder.Create<AutoCompleteBox>(attrs)
+
+    type AutoCompleteBox with
+        static member itemsSource<'t when 't :> AutoCompleteBox>(value: IEnumerable) : IAttr<'t> =
+            AttrBuilder<'t>
+                .CreateProperty<IEnumerable>(AutoCompleteBox.ItemsSourceProperty, value, ValueNone)
+
+
 [<AbstractClass; Sealed>]
 type Views =
 
@@ -98,12 +113,15 @@ type Views =
             let countries =
                 ctx.useState<ObservableCollection<NameAndCount>> (ObservableCollection())
 
+            let tags = ctx.useState<ObservableCollection<string>> (ObservableCollection())
+
             let selectedItem = ctx.useState<Option<Station>> None
             let selectedCountry = ctx.useState<Option<NameAndCount>> None
             let searchButtonEnabled = ctx.useState false
             let playEnabled = ctx.useState false
             let isPlaying = ctx.useState false
             let searchText = ctx.useState ""
+            let selectedTag = ctx.useState ""
             let nowPlaying = ctx.useState<string option> None
             let volume = ctx.useState 50
             //https://wiki.videolan.org/VLC_command-line_help/
@@ -183,6 +201,8 @@ type Views =
                 }
 
             let favoritesPath = Path.Combine(__SOURCE_DIRECTORY__, "favorites.json")
+            let countriesPath = Path.Combine(__SOURCE_DIRECTORY__, "countries.json")
+            let tagsPath = Path.Combine(__SOURCE_DIRECTORY__, "tags.json")
 
             let getFavStations =
                 async {
@@ -198,19 +218,36 @@ type Views =
 
             let getCountries =
                 async {
-                    let client = RadioBrowserClient()
-                    let! countryCodes = client.Lists.GetCountriesCodesAsync() |> Async.AwaitTask
+                    if File.Exists(countriesPath) then
+                        let! jsonCountries = File.ReadAllTextAsync(countriesPath) |> Async.AwaitTask
+                        let countries = JsonSerializer.Deserialize<NameAndCount list> jsonCountries
+                        return countries |> List.toSeq
+                    else
+                        let client = RadioBrowserClient()
+                        let! countryCodes = client.Lists.GetCountriesCodesAsync() |> Async.AwaitTask
 
-                    let codes =
-                        countryHelper.Current.GetCountryData()
-                        |> Seq.map (fun x -> x.CountryShortCode)
-                        |> Set.ofSeq
+                        let codes =
+                            countryHelper.Current.GetCountryData()
+                            |> Seq.map (fun x -> x.CountryShortCode)
+                            |> Set.ofSeq
 
-                    let result = countryCodes |> Seq.filter (fun x -> codes.Contains(x.Name))
-                    let empty = new NameAndCount()
-                    empty.Name <- ""
-                    empty.Stationcount <- 0u
-                    return result |> Seq.insertAt 0 empty
+                        let result = countryCodes |> Seq.filter (fun x -> codes.Contains(x.Name))
+                        let empty = new NameAndCount()
+                        empty.Name <- ""
+                        empty.Stationcount <- 0u
+                        return result |> Seq.insertAt 0 empty
+                }
+
+            let getTags =
+                async {
+                    if File.Exists(tagsPath) then
+                        let! jsonTags = File.ReadAllTextAsync(tagsPath) |> Async.AwaitTask
+                        let tags = JsonSerializer.Deserialize<string list> jsonTags
+                        return tags |> List.toSeq
+                    else
+                        let client = RadioBrowserClient()
+                        let! result = client.Lists.GetTagsAsync() |> Async.AwaitTask
+                        return result |> Seq.map (fun x -> x.Name)
                 }
 
             let getPlayer =
@@ -251,6 +288,17 @@ type Views =
                                 favItems.Current |> Seq.toList |> JsonSerializer.Serialize<Station list>
 
                             File.WriteAllText(favoritesPath, favText)
+
+                            if countries.Current.Count > 0 then
+                                let countriesText =
+                                    countries.Current |> Seq.toList |> JsonSerializer.Serialize<NameAndCount list>
+
+                                File.WriteAllText(countriesPath, countriesText)
+
+                            if tags.Current.Count > 0 then
+                                let tagsText = tags.Current |> Seq.toList |> JsonSerializer.Serialize<string list>
+                                File.WriteAllText(tagsPath, tagsText)
+
                             player.Current.Stop()
                             player.Current.Dispose()
                             libVlc.Current.Dispose())
@@ -270,17 +318,24 @@ type Views =
                                               let item = convert (x, false)
                                               item.IsFavorite <- isStationFavorite item
                                               items.Current.Add(item)))),
-                                     (fun ex -> (printfn "%A" ex)),
+                                     (fun ex -> (printfn "getDefaultStations: %A" ex)),
                                      (fun _ -> ())
                                  ))),
-                            (fun ex -> (printfn "%A" ex)),
+                            (fun ex -> (printfn "getFavStations: %A" ex)),
                             (fun _ -> ())
                         )
 
                         Async.StartWithContinuations(
                             getCountries,
                             (fun (_countries) -> (_countries |> Seq.iter (fun x -> countries.Current.Add(x)))),
-                            (fun ex -> (printfn "%A" ex)),
+                            (fun ex -> (printfn "getCountries: %A" ex)),
+                            (fun _ -> ())
+                        )
+
+                        Async.StartWithContinuations(
+                            getTags,
+                            (fun (_tags) -> (_tags |> Seq.iter (fun x -> tags.Current.Add(x)))),
+                            (fun ex -> (printfn "getTags: %A" ex)),
                             (fun _ -> ())
                         )),
                 triggers = [ EffectTrigger.AfterInit ]
@@ -294,6 +349,10 @@ type Views =
                 if not (String.IsNullOrEmpty(searchText.Current)) then
                     opt.Name <- searchText.Current
 
+                if not (String.IsNullOrWhiteSpace(selectedTag.Current)) then
+                    opt.TagList <- selectedTag.Current
+                    opt.TagExact <- true
+
                 if
                     selectedCountry.Current.IsSome
                     && selectedCountry.Current.Value.Stationcount > 0u
@@ -303,6 +362,7 @@ type Views =
 
                     opt.Country <- country.CountryName
 
+                printfn "Search options: Name = '%A', Tag = '%A', Country = '%A'" opt.Name opt.TagList opt.Country
                 opt
 
             let rec doSearchWithOptions (options: AdvancedSearchOptions) =
@@ -322,9 +382,9 @@ type Views =
                             doSearchWithOptions (options) |> Async.Start
                         else
                             searchButtonEnabled.Set(true)
-                            printfn $"Finished. Count = {items.Current.Count}"
+                            printfn $"doSearchWithOptions finished. Count = {items.Current.Count}"
                     with ex ->
-                        printfn "%A" ex
+                        printfn "doSearchWithOptions: %A" ex
                 }
 
             let doSearch =
@@ -338,7 +398,11 @@ type Views =
                         items.Current.Clear()
                         let options = getSearchOptions (Nullable.op_Implicit (0u))
 
-                        if (String.IsNullOrEmpty(options.Name) && String.IsNullOrEmpty(options.Country)) then
+                        if
+                            (String.IsNullOrEmpty(options.Name)
+                             && String.IsNullOrEmpty(options.Country)
+                             && String.IsNullOrEmpty(options.TagList))
+                        then
                             let client = RadioBrowserClient()
                             let! results = client.Stations.GetByVotesAsync(chunk) |> Async.AwaitTask
 
@@ -352,7 +416,7 @@ type Views =
                         else
                             doSearchWithOptions (options) |> Async.Start
                     with ex ->
-                        printfn "%A" ex
+                        printfn "doSearch: %A" ex
                 }
 
             let play =
@@ -417,8 +481,8 @@ type Views =
                 try
                     svgImage.Source <- SvgSource.LoadFromSvg(xml)
                 with ex ->
-                    printfn "%A" countryCode
-                    printfn "%A" ex
+                    printfn "countryCode = '%A'" countryCode
+                    printfn "getSvgImageBycountryCode: %A" ex
 
                 svgImage
 
@@ -554,10 +618,22 @@ type Views =
                                   TextBlock.width 50
                                   TextBlock.textAlignment TextAlignment.Right ] ] ]
 
+            let setSearchButtonEnabled =
+                let enabled =
+                    not (String.IsNullOrWhiteSpace(selectedTag.Current))
+                    || (selectedCountry.Current.IsSome
+                        && selectedCountry.Current.Value.Stationcount > 0u)
+                    || not (String.IsNullOrWhiteSpace(searchText.Current))
+
+                if enabled <> searchButtonEnabled.Current then
+                    searchButtonEnabled.Set(enabled)
+
+                ()
+
             let getSearchPanel =
                 Grid.create
                     [ Grid.row 0
-                      Grid.columnDefinitions "371, *, Auto"
+                      Grid.columnDefinitions "371, 185, *, Auto"
                       Grid.children
                           [ ComboBox.create
                                 [ Grid.column 0
@@ -575,40 +651,41 @@ type Views =
                                        | _ -> failwith "Something went horribly wrong!")
                                       |> selectedCountry.Set
 
-                                      let isCountrySelected =
-                                          selectedCountry.Current.IsSome
-                                          && selectedCountry.Current.Value.Stationcount > 0u
-
-                                      if isCountrySelected && not searchButtonEnabled.Current then
-                                          searchButtonEnabled.Set(true)
-                                      elif
-                                          not isCountrySelected
-                                          && searchButtonEnabled.Current
-                                          && String.IsNullOrWhiteSpace(searchText.Current)
-                                      then
-                                          searchButtonEnabled.Set(false)) ]
-                            TextBox.create
+                                      setSearchButtonEnabled) ]
+                            AutoCompleteBox.create
                                 [ Grid.column 1
-                                  TextBox.margin (1, 4, 1, 4)
-                                  TextBox.watermark "Search radio stations"
-                                  TextBox.horizontalAlignment HorizontalAlignment.Stretch
-                                  TextBox.onKeyDown (fun e ->
-                                      if e.Key = Key.Enter then
-                                          let textBox = e.Source :?> TextBox
-                                          searchText.Set(textBox.Text)
-                                          searchButtonEnabled.Set(false)
-                                          Async.StartImmediate doSearch)
-                                  TextBox.onTextChanged (fun e ->
-                                      (if not (String.IsNullOrWhiteSpace(e)) && not searchButtonEnabled.Current then
-                                           searchButtonEnabled.Set(true)
-                                       elif
-                                           String.IsNullOrWhiteSpace(e)
-                                           && searchButtonEnabled.Current
-                                           && selectedCountry.Current.IsNone
-                                       then
-                                           searchButtonEnabled.Set(false))) ]
-                            Button.create
+                                  AutoCompleteBox.margin (1, 4, 4, 4)
+                                  AutoCompleteBox.verticalAlignment VerticalAlignment.Stretch
+                                  AutoCompleteBox.filterMode AutoCompleteFilterMode.StartsWith
+                                  AutoCompleteBox.itemsSource tags.Current
+                                  AutoCompleteBox.onSelectedItemChanged (fun item ->
+                                      (match item with
+                                       | null -> selectedTag.Set("")
+                                       | :? string as tag ->
+                                           if tags.Current.Contains(tag) then
+                                               printfn $"selectedTag = {tag}"
+                                               selectedTag.Set(tag)
+                                       | _ -> failwith "Something went horribly wrong!")
+
+                                      setSearchButtonEnabled)
+                                  AutoCompleteBox.watermark "Station Tag" ]
+                            TextBox.create
                                 [ Grid.column 2
+                                  TextBox.margin (1, 4, 1, 4)
+                                  TextBox.watermark "Station Name"
+                                  TextBox.horizontalAlignment HorizontalAlignment.Stretch
+                                  TextBox.verticalAlignment VerticalAlignment.Stretch
+                                  TextBox.onKeyDown (fun e ->
+                                      if (e.Key = Key.Enter) then
+                                          if searchButtonEnabled.Current then
+                                              Async.StartImmediate doSearch
+                                      else
+                                          setSearchButtonEnabled)
+                                  TextBox.onTextChanged (fun e ->
+                                      searchText.Set(e.Trim())
+                                      setSearchButtonEnabled) ]
+                            Button.create
+                                [ Grid.column 3
                                   Button.margin 4
                                   Button.content (
                                       SymbolIcon.create
