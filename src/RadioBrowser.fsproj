@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <NoDefaultLaunchSettingsFile>True</NoDefaultLaunchSettingsFile>
+    <ApplicationIcon>wwwroot/favicon.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="AppSettings.fs" />
+    <Compile Include="Services.fs" />
+    <Compile Include="DIExtensions.fs" />
+    <Compile Include="App.fs" />
+    <Compile Include="Program.fs" />
+    <EmbeddedResource Include="../json/*.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Update="wwwroot\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.Data" Version="6.4.1" />
+    <PackageReference Include="log4net" Version="3.0.4" />
+    <PackageReference Include="Photino.Blazor" Version="3.2.0" />
+    <PackageReference Include="Fun.Blazor.Wasm" Version="4.1.*" />
+    <PackageReference Include="Fun.Blazor.Microsoft.Web" Version="8.0.*" />
+    <PackageReference Include="Fun.Blazor.Microsoft.Authorization" Version="8.0.*" />
+    <PackageReference Include="Fun.Blazor.Microsoft.FluentUI" Version="4.11.3" />
+    <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components.Icons" Version="4.11.3" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="8.0.*" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="8.0.*" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Extensions.Localization" Version="8.0.*" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Log4Net.AspNetCore" Version="8.0.0" />    
+  </ItemGroup>
+</Project>

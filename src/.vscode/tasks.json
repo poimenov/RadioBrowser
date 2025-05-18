@@ -1,0 +1,14 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "build",
+			"type": "msbuild",
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"group": "build",			
+			"detail": "Build the RadioBrowser.fsproj project using dotnet build"
+		}
+	]
+}
