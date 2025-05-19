@@ -12,3 +12,18 @@ window.observeVisibility = (elementId, dotNetRef) => {
         observer.observe(target);
     }
 };
+
+function playAudio(isPlaying) {
+    console.log("Playing audio: " + isPlaying);
+    var player = document.getElementById("player");
+    if (isPlaying) {
+        player.play();
+    } else {
+        player.pause();
+    }
+}
+
+function setVolume(volume) {
+    var player = document.getElementById("player");
+    player.volume = volume;
+}

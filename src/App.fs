@@ -11,6 +11,7 @@ open Microsoft.FluentUI.AspNetCore.Components
 open Microsoft.JSInterop
 open Fun.Blazor
 open Fun.Blazor.Router
+open FSharp.Data.Adaptive
 
 type SharedResources() = class end
 
@@ -41,6 +42,8 @@ type IShareStore with
 
     member store.SelectedStation =
         store.CreateCVal(nameof store.SelectedStation, NotSelected)
+
+    member store.Volume = store.CreateCVal(nameof store.Volume, 0.5)
 
     member store.SearchMode = store.CreateCVal(nameof store.SearchMode, ByVotes)
 
@@ -224,20 +227,32 @@ let stationsByClicks =
         })
 
 let player =
-    html.inject (fun (store: IShareStore) ->
+    html.inject (fun (store: IShareStore, jsRuntime: IJSRuntime) ->
         adapt {
             let! selectedStation = store.SelectedStation
+            let! isPlaying, setIsPlaying = cval(false).WithSetter()
+            let! visiblePopover, setVisiblePopover = cval(false).WithSetter()
+            let! volume, setVolume = cval(store.Volume.Value).WithSetter()
 
             match selectedStation with
             | NotSelected -> div { "No station selected" }
             | Selected station ->
                 FluentStack'' {
                     Orientation Orientation.Horizontal
+                    VerticalAlignment VerticalAlignment.Center
 
                     stationIcon station.Favicon
 
-                    div {
-                        div {
+
+                    FluentStack'' {
+                        Orientation Orientation.Vertical
+                        VerticalGap 4
+                        style' "max-width: 500px;overflow: hidden;"
+
+                        FluentStack'' {
+                            Orientation Orientation.Horizontal
+                            VerticalAlignment VerticalAlignment.Center
+
                             if not (String.IsNullOrEmpty station.Countrycode) then
                                 img {
                                     class' "flag-icon"
@@ -257,8 +272,75 @@ let player =
                             span { station.Language }
                         }
 
-                        div { station.Tags }
+                        div {
+                            style' "height:40px;"
+                            station.Tags
+                        }
                     }
+
+                    FluentSpacer''
+
+                    FluentButton'' {
+                        class' "player-button"
+                        IconStart(Icons.Regular.Size48.Heart())
+                    }
+
+                    FluentButton'' {
+                        Id "player-button-volume"
+                        class' "player-button"
+                        IconStart(Icons.Regular.Size48.Speaker2())
+                        OnClick(fun _ -> setVisiblePopover true)
+                    }
+
+                    FluentButton'' {
+                        class' "player-button"
+
+                        IconStart(
+                            if isPlaying then
+                                Icons.Regular.Size48.RecordStop() :> Icon
+                            else
+                                Icons.Regular.Size48.PlayCircle() :> Icon
+                        )
+
+                        OnClick(fun _ ->
+                            task {
+                                let newPlaying = not isPlaying
+                                setIsPlaying newPlaying
+                                jsRuntime.InvokeVoidAsync("playAudio", newPlaying) |> ignore
+                            })
+                    }
+
+                }
+
+                FluentPopover'' {
+                    AnchorId "player-button-volume"
+                    style' "width: 50px;height: 260px;"
+                    VerticalPosition VerticalPosition.Top
+                    Open visiblePopover
+                    OpenChanged(fun v -> setVisiblePopover v)
+
+                    Body(
+                        FluentSliderFloat'' {
+                            Orientation Orientation.Vertical
+                            Min 0.0
+                            Max 1.0
+                            Step 0.01
+                            Value volume
+
+                            ValueChanged(fun v ->
+                                setVolume v
+                                store.Volume.Publish v
+                                jsRuntime.InvokeVoidAsync("setVolume", v) |> ignore)
+
+                        }
+                    )
+                }
+
+                audio {
+                    id "player"
+                    style' "display:none;"
+                    controls
+                    src station.UrlResolved
                 }
         })
 
