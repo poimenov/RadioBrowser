@@ -3,6 +3,7 @@ module RadioBrowser.App
 
 open System
 open System.Linq
+open Microsoft.AspNetCore.Components
 open Microsoft.AspNetCore.Components.Web
 open Microsoft.AspNetCore.Components.Routing
 open Microsoft.Extensions.Localization
@@ -12,7 +13,6 @@ open Microsoft.JSInterop
 open Fun.Blazor
 open Fun.Blazor.Router
 open FSharp.Data.Adaptive
-open System.Globalization
 
 type SharedResources() = class end
 
@@ -205,24 +205,149 @@ let stationsList (store: IShareStore) =
         }
     }
 
+let stationsByCountry (countryCode: string) =
+    html.inject (fun (store: IShareStore, stationsService: IStationsService, hook: IComponentHook) ->
+        let getStationsByCountryCode (code: string) =
+            async {
+                let searchParams =
+                    SearchStationParameters(None, None, Some code, None, None, None, None)
+
+                store.SearchMode.Publish(Search searchParams)
+                let parameters = getParameters (0, stationsService.Settings)
+                return! stationsService.SearchStations(searchParams, parameters)
+            }
+
+        hook.AddFirstAfterRenderTask(fun _ ->
+            task {
+                let! stations = getStationsByCountryCode (countryCode)
+                store.Stations.Publish stations
+            })
+
+        fragment {
+            adapt {
+                let! searchString, setSearchString = cval("").WithSetter()
+
+                let searchEnabled (str: string) =
+                    str.Trim().Length > 2 && str.Trim().Length < 36
+
+                let filterStations (name: string) =
+                    async {
+                        let searchParams =
+                            SearchStationParameters(Some name, Some false, Some countryCode, None, None, None, None)
+
+                        store.SearchMode.Publish(Search searchParams)
+                        let parameters = getParameters (0, stationsService.Settings)
+                        return! stationsService.SearchStations(searchParams, parameters)
+                    }
+
+                let getStations (str: string) =
+                    async {
+                        if searchEnabled str then
+                            return! filterStations searchString
+                        else
+                            return! getStationsByCountryCode countryCode
+                    }
+
+                div {
+                    style' "margin:10px;"
+
+                    FluentStack'' {
+                        Orientation Orientation.Horizontal
+                        VerticalAlignment VerticalAlignment.Center
+
+                        FluentTextField'' {
+                            Label "Filter stations"
+                            Placeholder "station name (min 3 chars)"
+                            style' "width:250px;"
+                            Immediate true
+                            minlength 3
+                            maxlength 35
+
+                            onkeydown (fun e ->
+                                task {
+                                    if e.Key = "Enter" then
+                                        let! stations = getStations searchString
+                                        store.Stations.Publish stations
+                                })
+
+                            Value searchString
+                            ValueChanged(fun s -> setSearchString s)
+                        }
+
+                        FluentButton'' {
+                            IconStart(Icons.Regular.Size20.Search())
+                            Title "Search"
+
+                            OnClick(fun _ ->
+                                task {
+                                    let! stations = getStations searchString
+                                    store.Stations.Publish stations
+                                })
+                        }
+                    }
+                }
+
+                stationsList store
+            }
+        })
+
 let homePage =
-    html.inject
-        (fun
-            (store: IShareStore, stationsService: IStationsService, hook: IComponentHook, options: IOptions<AppSettings>) ->
-            hook.AddFirstAfterRenderTask(fun _ ->
-                task {
-                    let countryCode = options.Value.CurrentRegion.TwoLetterISORegionName
+    html.inject (fun (options: IOptions<AppSettings>) ->
+        let countryCode = options.Value.CurrentRegion.TwoLetterISORegionName
+        stationsByCountry countryCode)
 
-                    let searchParams =
-                        SearchStationParameters(None, None, Some countryCode, None, None, None, None)
+let countriesPage =
+    html.inject (fun (store: IShareStore, listsService: IListsService, navigation: NavigationManager) ->
+        fragment {
+            let countries = listsService.GetCountries() |> Async.RunSynchronously
 
-                    store.SearchMode.Publish(Search searchParams)
-                    let parameters = getParameters (0, stationsService.Settings)
-                    let! stations = stationsService.SearchStations(searchParams, parameters)
-                    store.Stations.Publish stations
-                })
+            adapt {
+                let! searchString, setSearchString = cval("").WithSetter()
 
-            stationsList store)
+                let filteredCountries =
+                    if String.IsNullOrWhiteSpace searchString then
+                        countries |> Array.distinctBy (fun c -> c.Name)
+                    else
+                        countries
+                        |> Array.filter (fun c -> c.Name.ToLower().Contains(searchString.ToLower()))
+                        |> Array.distinctBy (fun c -> c.Name)
+
+                div {
+                    style' "margin:10px;"
+
+                    FluentTextField'' {
+                        Label "Filter countries"
+                        Placeholder "country name"
+                        Immediate true
+                        Value searchString
+                        ValueChanged(fun s -> setSearchString s)
+                    }
+                }
+
+                div {
+                    class' "countries-list"
+
+                    for country in filteredCountries do
+                        div {
+                            class' "country"
+                            title' $"{country.Name} (Count of stations: {country.Stationcount})"
+                            onclick (fun _ -> navigation.NavigateTo $"/stationsByCountry/{country.Iso31661}")
+
+                            div {
+                                class' "country-name"
+                                country.Name
+                            }
+
+                            img {
+                                class' "country-image"
+                                src $"./images/flags/{country.Iso31661.ToLower()}.svg"
+                                loadingExperimental true
+                            }
+                        }
+
+                }
+            }
+        })
 
 let favoriteStations =
     html.inject (fun (store: IShareStore, stationsService: IStationsService, hook: IComponentHook) ->
@@ -270,7 +395,11 @@ let player =
             let! selectedStationIsFavorite = store.SelectedStationIsFavorite
 
             match selectedStation with
-            | NotSelected -> div { "No station selected" }
+            | NotSelected ->
+                div {
+                    style' "text-align:center;"
+                    "No station selected"
+                }
             | Selected station ->
                 FluentStack'' {
                     Orientation Orientation.Horizontal
@@ -302,7 +431,20 @@ let player =
                             }
                         }
 
-                        div {
+                        FluentStack'' {
+                            Orientation Orientation.Horizontal
+                            VerticalAlignment VerticalAlignment.Center
+                            HorizontalGap 4
+
+                            FluentIcon'' {
+                                Value(
+                                    if selectedStationIsFavorite then
+                                        Icons.Filled.Size16.Heart() :> Icon
+                                    else
+                                        Icons.Regular.Size16.Heart() :> Icon
+                                )
+                            }
+
                             span { $"{station.Bitrate} kbps " }
                             span { station.Language }
                         }
@@ -507,6 +649,13 @@ let navmenus =
                 }
 
                 FluentNavLink'' {
+                    Href "/countries"
+                    Match NavLinkMatch.Prefix
+                    Icon(Icons.Regular.Size20.Flag())
+                    "By country"
+                }
+
+                FluentNavLink'' {
                     Href "/stationsByVotes"
                     Match NavLinkMatch.Prefix
                     Icon(Icons.Regular.Size20.MusicNote1())
@@ -527,6 +676,8 @@ let routes =
         [| routeCi "/stationsByVotes" stationsByVotes
            routeCi "/stationsByClicks" stationsByClicks
            routeCi "/favorites" favoriteStations
+           routeCi "/countries" countriesPage
+           routeCif "/stationsByCountry/%s" (fun x -> stationsByCountry (x))
            routeAny homePage |]
 
 let app =
@@ -537,7 +688,6 @@ let app =
                 string e
             })
 
-        //FluentToastProvider''
         FluentDesignTheme'' { StorageName "theme" }
 
         FluentLayout'' {
@@ -556,6 +706,7 @@ let app =
                     FluentStack'' {
                         style' "width:100%;height:100%;"
                         Orientation Orientation.Vertical
+                        VerticalGap 2
 
                         div {
                             class' "content"
