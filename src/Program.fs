@@ -65,9 +65,6 @@ let main args =
         .SetSize(settings.Value.WindowWidth, settings.Value.WindowHeight)
         .SetIconFile(Path.Combine(AppSettings.WwwRootFolderName, AppSettings.FavIconFileName))
         .SetTitle(AppSettings.ApplicationName)
-    // .RegisterWindowClosingHandler(fun _ _ ->
-    //     application.Services.GetRequiredService<IChannelItems>().Delete()
-    //     false)
     |> ignore
 
     AppDomain.CurrentDomain.UnhandledException.Add(fun e ->

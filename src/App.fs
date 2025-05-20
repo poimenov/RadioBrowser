@@ -139,7 +139,7 @@ let stationItem (station: Station, isFavorite: bool) =
                     )
                 }
 
-                span { $"{station.Bitrate} kbps " }
+                span { $"{station.Codec} {station.Bitrate} kbps " }
                 span { station.Language }
             }
 
@@ -386,157 +386,169 @@ let stationsByClicks =
         stationsList store)
 
 let player =
-    html.inject (fun (store: IShareStore, jsRuntime: IJSRuntime, dataAccess: IFavoritesDataAccess) ->
-        adapt {
-            let! selectedStation = store.SelectedStation
-            let! isPlaying, setIsPlaying = cval(false).WithSetter()
-            let! visiblePopover, setVisiblePopover = cval(false).WithSetter()
-            let! volume, setVolume = cval(store.Volume.Value).WithSetter()
-            let! selectedStationIsFavorite = store.SelectedStationIsFavorite
+    html.inject
+        (fun (store: IShareStore, jsRuntime: IJSRuntime, dataAccess: IFavoritesDataAccess, los: ILinkOpeningService) ->
+            adapt {
+                let! selectedStation = store.SelectedStation
+                let! isPlaying, setIsPlaying = cval(false).WithSetter()
+                let! visiblePopover, setVisiblePopover = cval(false).WithSetter()
+                let! volume, setVolume = cval(store.Volume.Value).WithSetter()
+                let! selectedStationIsFavorite = store.SelectedStationIsFavorite
 
-            match selectedStation with
-            | NotSelected ->
-                div {
-                    style' "text-align:center;"
-                    "No station selected"
-                }
-            | Selected station ->
-                FluentStack'' {
-                    Orientation Orientation.Horizontal
-                    VerticalAlignment VerticalAlignment.Center
-
-                    stationIcon station.Favicon
-
-
+                match selectedStation with
+                | NotSelected ->
+                    div {
+                        style' "text-align:center;"
+                        "No station selected"
+                    }
+                | Selected station ->
                     FluentStack'' {
-                        Orientation Orientation.Vertical
-                        VerticalGap 4
-                        style' "max-width: 500px;overflow: hidden;"
+                        Orientation Orientation.Horizontal
+                        VerticalAlignment VerticalAlignment.Center
+
+                        stationIcon station.Favicon
+
 
                         FluentStack'' {
-                            Orientation Orientation.Horizontal
-                            VerticalAlignment VerticalAlignment.Center
+                            Orientation Orientation.Vertical
+                            VerticalGap 4
+                            style' "max-width: 500px;overflow: hidden;"
 
-                            if not (String.IsNullOrEmpty station.CountryCode) then
-                                img {
-                                    class' "flag-icon"
-                                    src $"./images/flags/{station.CountryCode.ToLower()}.svg"
-                                    loadingExperimental true
+                            FluentStack'' {
+                                Orientation Orientation.Horizontal
+                                VerticalAlignment VerticalAlignment.Center
+
+                                if not (String.IsNullOrEmpty station.CountryCode) then
+                                    img {
+                                        class' "flag-icon"
+                                        src $"./images/flags/{station.CountryCode.ToLower()}.svg"
+                                        loadingExperimental true
+                                    }
+
+                                if not (String.IsNullOrEmpty station.Homepage) then
+                                    FluentAnchor'' {
+                                        class' "station-name"
+                                        title' station.Name
+                                        Appearance Appearance.Hypertext
+                                        href "#"
+                                        OnClick(fun _ -> los.OpenUrl station.Homepage)
+
+                                        station.Name
+                                    }
+                                else
+                                    span {
+                                        class' "station-name"
+                                        title' station.Name
+                                        station.Name
+                                    }
+                            }
+
+                            FluentStack'' {
+                                Orientation Orientation.Horizontal
+                                VerticalAlignment VerticalAlignment.Center
+                                HorizontalGap 4
+
+                                FluentIcon'' {
+                                    Value(
+                                        if selectedStationIsFavorite then
+                                            Icons.Filled.Size16.Heart() :> Icon
+                                        else
+                                            Icons.Regular.Size16.Heart() :> Icon
+                                    )
                                 }
 
-                            span {
-                                class' "station-name"
-                                title' station.Name
-                                station.Name
+                                span { $"{station.Codec} {station.Bitrate} kbps " }
+                                span { station.Language }
+                            }
+
+                            div {
+                                style' "height:40px;"
+                                station.Tags
                             }
                         }
 
-                        FluentStack'' {
-                            Orientation Orientation.Horizontal
-                            VerticalAlignment VerticalAlignment.Center
-                            HorizontalGap 4
+                        FluentSpacer''
 
-                            FluentIcon'' {
-                                Value(
-                                    if selectedStationIsFavorite then
-                                        Icons.Filled.Size16.Heart() :> Icon
-                                    else
-                                        Icons.Regular.Size16.Heart() :> Icon
-                                )
+                        FluentButton'' {
+                            class' "player-button"
+
+                            IconStart(
+                                if selectedStationIsFavorite then
+                                    Icons.Filled.Size48.Heart() :> Icon
+                                else
+                                    Icons.Regular.Size48.Heart() :> Icon
+                            )
+
+                            OnClick(fun _ ->
+                                if dataAccess.Exists station.Id then
+                                    dataAccess.Remove station.Id
+                                    station.IsFavorite <- false
+                                else
+                                    dataAccess.Add station
+                                    station.IsFavorite <- true
+
+                                store.SelectedStationIsFavorite.Publish station.IsFavorite)
+
+                        }
+
+                        FluentButton'' {
+                            Id "player-button-volume"
+                            class' "player-button"
+                            IconStart(Icons.Regular.Size48.Speaker2())
+                            OnClick(fun _ -> setVisiblePopover true)
+                        }
+
+                        FluentButton'' {
+                            class' "player-button"
+
+                            IconStart(
+                                if isPlaying then
+                                    Icons.Regular.Size48.RecordStop() :> Icon
+                                else
+                                    Icons.Regular.Size48.PlayCircle() :> Icon
+                            )
+
+                            OnClick(fun _ ->
+                                task {
+                                    let newPlaying = not isPlaying
+                                    setIsPlaying newPlaying
+                                    jsRuntime.InvokeVoidAsync("playAudio", newPlaying) |> ignore
+                                })
+                        }
+
+                    }
+
+                    FluentPopover'' {
+                        AnchorId "player-button-volume"
+                        style' "width: 50px;height: 260px;"
+                        VerticalPosition VerticalPosition.Top
+                        Open visiblePopover
+                        OpenChanged(fun v -> setVisiblePopover v)
+
+                        Body(
+                            FluentSliderFloat'' {
+                                Orientation Orientation.Vertical
+                                Min 0.0
+                                Max 1.0
+                                Step 0.01
+                                Value volume
+
+                                ValueChanged(fun v ->
+                                    setVolume v
+                                    store.Volume.Publish v
+                                    jsRuntime.InvokeVoidAsync("setVolume", v) |> ignore)
+
                             }
-
-                            span { $"{station.Bitrate} kbps " }
-                            span { station.Language }
-                        }
-
-                        div {
-                            style' "height:40px;"
-                            station.Tags
-                        }
-                    }
-
-                    FluentSpacer''
-
-                    FluentButton'' {
-                        class' "player-button"
-
-                        IconStart(
-                            if selectedStationIsFavorite then
-                                Icons.Filled.Size48.Heart() :> Icon
-                            else
-                                Icons.Regular.Size48.Heart() :> Icon
                         )
-
-                        OnClick(fun _ ->
-                            if dataAccess.Exists station.Id then
-                                dataAccess.Remove station.Id
-                                station.IsFavorite <- false
-                            else
-                                dataAccess.Add station
-                                station.IsFavorite <- true
-
-                            store.SelectedStationIsFavorite.Publish station.IsFavorite)
-
                     }
 
-                    FluentButton'' {
-                        Id "player-button-volume"
-                        class' "player-button"
-                        IconStart(Icons.Regular.Size48.Speaker2())
-                        OnClick(fun _ -> setVisiblePopover true)
+                    audio {
+                        id "player"
+                        style' "display:none;"
+                        controls
+                        src station.UrlResolved
                     }
-
-                    FluentButton'' {
-                        class' "player-button"
-
-                        IconStart(
-                            if isPlaying then
-                                Icons.Regular.Size48.RecordStop() :> Icon
-                            else
-                                Icons.Regular.Size48.PlayCircle() :> Icon
-                        )
-
-                        OnClick(fun _ ->
-                            task {
-                                let newPlaying = not isPlaying
-                                setIsPlaying newPlaying
-                                jsRuntime.InvokeVoidAsync("playAudio", newPlaying) |> ignore
-                            })
-                    }
-
-                }
-
-                FluentPopover'' {
-                    AnchorId "player-button-volume"
-                    style' "width: 50px;height: 260px;"
-                    VerticalPosition VerticalPosition.Top
-                    Open visiblePopover
-                    OpenChanged(fun v -> setVisiblePopover v)
-
-                    Body(
-                        FluentSliderFloat'' {
-                            Orientation Orientation.Vertical
-                            Min 0.0
-                            Max 1.0
-                            Step 0.01
-                            Value volume
-
-                            ValueChanged(fun v ->
-                                setVolume v
-                                store.Volume.Publish v
-                                jsRuntime.InvokeVoidAsync("setVolume", v) |> ignore)
-
-                        }
-                    )
-                }
-
-                audio {
-                    id "player"
-                    style' "display:none;"
-                    controls
-                    src station.UrlResolved
-                }
-        })
+            })
 
 let appHeader =
     html.inject

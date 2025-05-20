@@ -217,4 +217,5 @@ footer a:hover {
     font-size:16pt;   
     margin-left: 5px;
     white-space: nowrap;
+    color: var(--neutral-foreground-rest);
 }

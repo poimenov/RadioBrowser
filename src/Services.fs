@@ -2,7 +2,6 @@
 module RadioBrowser.Services
 
 open System
-open System.Collections.Generic
 open System.Net
 open System.Net.NetworkInformation
 open System.Diagnostics
