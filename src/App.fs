@@ -12,6 +12,7 @@ open Microsoft.JSInterop
 open Fun.Blazor
 open Fun.Blazor.Router
 open FSharp.Data.Adaptive
+open System.Globalization
 
 type SharedResources() = class end
 
@@ -26,10 +27,11 @@ type Github() =
 
 type SelectedStation =
     | NotSelected
-    | Selected of StationsProvider.Station
+    | Selected of Station
 
 type CurrentSearchMode =
     | Search of SearchStationParameters
+    | Favorites
     | ByVotes
     | ByClicks
 
@@ -38,10 +40,13 @@ type IShareStore with
     member store.Theme = store.CreateCVal(nameof store.Theme, DesignThemeModes.Light)
 
     member store.Stations =
-        store.CreateCVal(nameof store.Stations, Enumerable.Empty<StationsProvider.Station>())
+        store.CreateCVal(nameof store.Stations, Enumerable.Empty<Station>())
 
     member store.SelectedStation =
         store.CreateCVal(nameof store.SelectedStation, NotSelected)
+
+    member store.SelectedStationIsFavorite =
+        store.CreateCVal(nameof store.SelectedStationIsFavorite, false)
 
     member store.Volume = store.CreateCVal(nameof store.Volume, 0.5)
 
@@ -61,26 +66,13 @@ type ElementVisibilityCallback(store: IShareStore, stationsService: IStationsSer
                 match store.SearchMode.Value with
                 | ByVotes -> stationsService.GetStationsByVotes parameters
                 | ByClicks -> stationsService.GetStationsByClicks parameters
+                | Favorites -> stationsService.GetFavoriteStations parameters
                 | Search ssp -> stationsService.SearchStations(ssp, parameters)
 
             if newStations.Count() > 0 then
                 let stations = store.Stations.Value.Concat(newStations)
                 store.Stations.Publish stations
         }
-
-let homePage =
-    fragment {
-        SectionContent'' {
-            SectionName "Title"
-            "Home"
-        }
-
-        FluentLabel'' {
-            Typo Typography.H1
-            Color Color.Accent
-            "Hi from FunBlazor"
-        }
-    }
 
 let watchElementVisibleComponent =
     html.inject
@@ -112,17 +104,17 @@ let stationIcon (iconUrl: string) =
         onerror $"this.src = '{defaultImageSrc}';"
     }
 
-let stationItem (station: StationsProvider.Station) =
+let stationItem (station: Station, isFavorite: bool) =
     div {
         class' "station-item"
         stationIcon station.Favicon
 
         div {
             div {
-                if not (String.IsNullOrEmpty station.Countrycode) then
+                if not (String.IsNullOrEmpty station.CountryCode) then
                     img {
                         class' "flag-icon"
-                        src $"./images/flags/{station.Countrycode.ToLower()}.svg"
+                        src $"./images/flags/{station.CountryCode.ToLower()}.svg"
                         loadingExperimental true
                     }
 
@@ -133,7 +125,20 @@ let stationItem (station: StationsProvider.Station) =
                 }
             }
 
-            div {
+            FluentStack'' {
+                Orientation Orientation.Horizontal
+                VerticalAlignment VerticalAlignment.Center
+                HorizontalGap 4
+
+                FluentIcon'' {
+                    Value(
+                        if isFavorite then
+                            Icons.Filled.Size16.Heart() :> Icon
+                        else
+                            Icons.Regular.Size16.Heart() :> Icon
+                    )
+                }
+
                 span { $"{station.Bitrate} kbps " }
                 span { station.Language }
             }
@@ -150,17 +155,28 @@ let stationsList (store: IShareStore) =
 
             let! stations = store.Stations
             let! selectedStation = store.SelectedStation
+            let! selectedStationIsFavorite = store.SelectedStationIsFavorite
 
-            let isCurrent (curr: StationsProvider.Station) =
+            let isCurrent (curr: Station) =
                 match selectedStation with
                 | NotSelected -> false
-                | Selected item -> curr.Stationuuid = item.Stationuuid
+                | Selected item -> curr.Id = item.Id
 
-            let getSelectedClass (curr: StationsProvider.Station) =
+            let getSelectedClass (curr: Station) =
                 if isCurrent curr then
                     "station selected-station"
                 else
                     "station"
+
+            let isFavorite (curr: Station) =
+                match selectedStation with
+                | NotSelected -> curr.IsFavorite
+                | Selected item ->
+                    if curr.Id = item.Id then
+                        selectedStationIsFavorite
+                    else
+                        curr.IsFavorite
+
 
             if stations.Any() then
                 div {
@@ -172,9 +188,10 @@ let stationsList (store: IShareStore) =
 
                             onclick (fun _ ->
                                 let selected = SelectedStation.Selected(station)
+                                store.SelectedStationIsFavorite.Publish(station.IsFavorite)
                                 store.SelectedStation.Publish(selected))
 
-                            stationItem station
+                            stationItem (station, isFavorite station)
                         }
 
                     watchElementVisibleComponent
@@ -188,6 +205,37 @@ let stationsList (store: IShareStore) =
         }
     }
 
+let homePage =
+    html.inject
+        (fun
+            (store: IShareStore, stationsService: IStationsService, hook: IComponentHook, options: IOptions<AppSettings>) ->
+            hook.AddFirstAfterRenderTask(fun _ ->
+                task {
+                    let countryCode = options.Value.CurrentRegion.TwoLetterISORegionName
+
+                    let searchParams =
+                        SearchStationParameters(None, None, Some countryCode, None, None, None, None)
+
+                    store.SearchMode.Publish(Search searchParams)
+                    let parameters = getParameters (0, stationsService.Settings)
+                    let! stations = stationsService.SearchStations(searchParams, parameters)
+                    store.Stations.Publish stations
+                })
+
+            stationsList store)
+
+let favoriteStations =
+    html.inject (fun (store: IShareStore, stationsService: IStationsService, hook: IComponentHook) ->
+        hook.AddFirstAfterRenderTask(fun _ ->
+            task {
+                store.SearchMode.Publish Favorites
+                let parameters = getParameters (0, stationsService.Settings)
+                let! stations = stationsService.GetFavoriteStations parameters
+                store.Stations.Publish stations
+            })
+
+        stationsList store)
+
 let stationsByVotes =
     html.inject (fun (store: IShareStore, stationsService: IStationsService, hook: IComponentHook) ->
         hook.AddFirstAfterRenderTask(fun _ ->
@@ -198,14 +246,7 @@ let stationsByVotes =
                 store.Stations.Publish stations
             })
 
-        fragment {
-            SectionContent'' {
-                SectionName "Title"
-                "Stations by votes"
-            }
-
-            stationsList store
-        })
+        stationsList store)
 
 let stationsByClicks =
     html.inject (fun (store: IShareStore, stationsService: IStationsService, hook: IComponentHook) ->
@@ -217,22 +258,16 @@ let stationsByClicks =
                 store.Stations.Publish stations
             })
 
-        fragment {
-            SectionContent'' {
-                SectionName "Title"
-                "Stations by clicks"
-            }
-
-            stationsList store
-        })
+        stationsList store)
 
 let player =
-    html.inject (fun (store: IShareStore, jsRuntime: IJSRuntime) ->
+    html.inject (fun (store: IShareStore, jsRuntime: IJSRuntime, dataAccess: IFavoritesDataAccess) ->
         adapt {
             let! selectedStation = store.SelectedStation
             let! isPlaying, setIsPlaying = cval(false).WithSetter()
             let! visiblePopover, setVisiblePopover = cval(false).WithSetter()
             let! volume, setVolume = cval(store.Volume.Value).WithSetter()
+            let! selectedStationIsFavorite = store.SelectedStationIsFavorite
 
             match selectedStation with
             | NotSelected -> div { "No station selected" }
@@ -253,10 +288,10 @@ let player =
                             Orientation Orientation.Horizontal
                             VerticalAlignment VerticalAlignment.Center
 
-                            if not (String.IsNullOrEmpty station.Countrycode) then
+                            if not (String.IsNullOrEmpty station.CountryCode) then
                                 img {
                                     class' "flag-icon"
-                                    src $"./images/flags/{station.Countrycode.ToLower()}.svg"
+                                    src $"./images/flags/{station.CountryCode.ToLower()}.svg"
                                     loadingExperimental true
                                 }
 
@@ -282,7 +317,24 @@ let player =
 
                     FluentButton'' {
                         class' "player-button"
-                        IconStart(Icons.Regular.Size48.Heart())
+
+                        IconStart(
+                            if selectedStationIsFavorite then
+                                Icons.Filled.Size48.Heart() :> Icon
+                            else
+                                Icons.Regular.Size48.Heart() :> Icon
+                        )
+
+                        OnClick(fun _ ->
+                            if dataAccess.Exists station.Id then
+                                dataAccess.Remove station.Id
+                                station.IsFavorite <- false
+                            else
+                                dataAccess.Add station
+                                station.IsFavorite <- true
+
+                            store.SelectedStationIsFavorite.Publish station.IsFavorite)
+
                     }
 
                     FluentButton'' {
@@ -448,6 +500,13 @@ let navmenus =
                 }
 
                 FluentNavLink'' {
+                    Href "/favorites"
+                    Match NavLinkMatch.Prefix
+                    Icon(Icons.Regular.Size20.Heart())
+                    "Favorites"
+                }
+
+                FluentNavLink'' {
                     Href "/stationsByVotes"
                     Match NavLinkMatch.Prefix
                     Icon(Icons.Regular.Size20.MusicNote1())
@@ -467,6 +526,7 @@ let routes =
     html.route
         [| routeCi "/stationsByVotes" stationsByVotes
            routeCi "/stationsByClicks" stationsByClicks
+           routeCi "/favorites" favoriteStations
            routeAny homePage |]
 
 let app =

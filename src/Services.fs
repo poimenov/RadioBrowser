@@ -2,6 +2,7 @@
 module RadioBrowser.Services
 
 open System
+open System.Collections.Generic
 open System.Net
 open System.Net.NetworkInformation
 open System.Diagnostics
@@ -124,7 +125,9 @@ type NameAndCountProvider =
     JsonProvider<
         Sample="../src/json/NameAndCount.json",
         SampleIsList=true,
-        RootName="NameAndCount",
+        RootName="NameAndCount",  // |> Array.tryFind (fun x -> x.Key = id)
+        // |> Option.map (fun x -> x.Value)
+        // |> Option.defaultValue false
         Encoding="utf-8",
         EmbeddedResource="RadioBrowser, RadioBrowser.json.NameAndCount.json"
      >
@@ -151,6 +154,84 @@ type SearchStationParameters
     member this.Tag = tag
     member this.tagExact = tagExact
     member this.Codec = codec
+
+[<CLIMutable>]
+type Station =
+    { Id: Guid
+      Name: string
+      Url: string
+      UrlResolved: string
+      Homepage: string
+      Favicon: string
+      Tags: string
+      Country: string
+      CountryCode: string
+      Language: string
+      Codec: string
+      Bitrate: int
+      mutable IsFavorite: bool }
+
+type StationMapper =
+    static member toStation(station: StationsProvider.Station, isFavorite: bool) : Station =
+        { Id = station.Stationuuid
+          Name = station.Name
+          Url = station.Url
+          UrlResolved = station.UrlResolved
+          Homepage = station.Homepage
+          Favicon = station.Favicon
+          Tags = station.Tags
+          Country = station.Country
+          CountryCode = station.Countrycode
+          Language = station.Language
+          Codec = station.Codec
+          Bitrate = station.Bitrate
+          IsFavorite = isFavorite }
+
+type IFavoritesDataAccess =
+    abstract member GetFavorites: parameters: GetStationParameters -> Station array
+    abstract member Exists: Guid -> bool
+    abstract member Add: station: Station -> unit
+    abstract member Remove: Guid -> unit
+    abstract member IsFavorites: Guid array -> Map<Guid, bool>
+
+type FavoritesDataAccess() =
+    let database (connectionString: string) =
+        new LiteDB.LiteDatabase(connectionString)
+
+    let favorites (db: LiteDB.LiteDatabase) = db.GetCollection<Station>("favorites")
+
+    interface IFavoritesDataAccess with
+        member this.Add(station) =
+            use db = database AppSettings.DataBasePath
+
+            if not (favorites(db).Exists(fun x -> x.Id = station.Id)) then
+                station.IsFavorite <- true
+                favorites(db).Insert(station) |> ignore
+
+        member this.Exists(id: Guid) =
+            use db = database AppSettings.DataBasePath
+            favorites(db).Exists(fun x -> x.Id = id)
+
+        member this.GetFavorites(parameters: GetStationParameters) =
+            use db = database AppSettings.DataBasePath
+
+            favorites(db)
+                .Query()
+                .Select(fun x -> x)
+                .Limit(parameters.Limit)
+                .Offset(parameters.Offset)
+                .ToArray()
+
+        member this.Remove(id: Guid) =
+            use db = database AppSettings.DataBasePath
+            favorites(db).Delete(LiteDB.BsonValue(id)) |> ignore
+
+        member this.IsFavorites(ids: Guid array) =
+            let exists (id: Guid, favorites: LiteDB.ILiteCollection<Station>) = favorites.Exists(fun x -> x.Id = id)
+            use db = database AppSettings.DataBasePath
+            let favorites = favorites (db)
+
+            ids |> Array.map (fun id -> (id, exists (id, favorites))) |> Map.ofArray
 
 type IHttpHandler =
     abstract member GetJsonStringAsync: url: string * parameters: list<string * string> -> Async<string>
@@ -185,16 +266,16 @@ type HttpHandler(apiUrlProvider: IApiUrlProvider, logger: ILogger<HttpHandler>) 
             }
 
 type IStationsService =
-    abstract member GetStationsByClicks: parameters: GetStationParameters -> Async<StationsProvider.Station array>
-    abstract member GetStationsByVotes: parameters: GetStationParameters -> Async<StationsProvider.Station array>
+    abstract member GetStationsByClicks: parameters: GetStationParameters -> Async<Station array>
+    abstract member GetStationsByVotes: parameters: GetStationParameters -> Async<Station array>
+    abstract member GetFavoriteStations: parameters: GetStationParameters -> Async<Station array>
 
     abstract member SearchStations:
-        searchParameters: SearchStationParameters * parameters: GetStationParameters ->
-            Async<StationsProvider.Station array>
+        searchParameters: SearchStationParameters * parameters: GetStationParameters -> Async<Station array>
 
     abstract member Settings: AppSettings
 
-type StationsService(handler: IHttpHandler, options: IOptions<AppSettings>) =
+type StationsService(handler: IHttpHandler, dataAccess: IFavoritesDataAccess, options: IOptions<AppSettings>) =
     let stations = "stations"
 
     let getQuery (parameters: GetStationParameters) =
@@ -220,13 +301,27 @@ type StationsService(handler: IHttpHandler, options: IOptions<AppSettings>) =
           "limit", string parameters.Limit
           "hidebroken", string parameters.Hidebroken ]
 
+    let getStations (json: string) =
+        let response = StationsProvider.ParseList(json)
+
+        let favorites =
+            response |> Array.map (fun x -> x.Stationuuid) |> dataAccess.IsFavorites
+
+        let isFavorite (id: Guid) =
+            match favorites.ContainsKey id with
+            | true -> favorites.[id]
+            | false -> false
+
+        response
+        |> Array.map (fun x -> StationMapper.toStation (x, (isFavorite x.Stationuuid)))
+
     interface IStationsService with
         member this.GetStationsByClicks(parameters) =
             async {
                 let! jsonString =
                     handler.GetJsonStringAsync($"{stations}/topclick/{parameters.Limit}", getQuery parameters)
 
-                return StationsProvider.ParseList(jsonString)
+                return getStations jsonString
             }
 
         member this.GetStationsByVotes(parameters) =
@@ -234,7 +329,7 @@ type StationsService(handler: IHttpHandler, options: IOptions<AppSettings>) =
                 let! jsonString =
                     handler.GetJsonStringAsync($"{stations}/topvote/{parameters.Limit}", getQuery parameters)
 
-                return StationsProvider.ParseList(jsonString)
+                return getStations jsonString
             }
 
         member this.SearchStations(searchParameters, parameters) =
@@ -242,10 +337,13 @@ type StationsService(handler: IHttpHandler, options: IOptions<AppSettings>) =
                 let! jsonString =
                     handler.GetJsonStringAsync($"{stations}/search", getSearchQuery (searchParameters, parameters))
 
-                return StationsProvider.ParseList(jsonString)
+                return getStations jsonString
             }
 
         member this.Settings: AppSettings = options.Value
+
+        member this.GetFavoriteStations(parameters: GetStationParameters) =
+            async { return dataAccess.GetFavorites(parameters) }
 
 type IListsService =
     abstract member GetCountries: unit -> Async<CountriesProvider.Country array>

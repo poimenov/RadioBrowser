@@ -45,6 +45,9 @@ let main args =
     builder.Services.AddScoped<IStationsService, StationsService>() |> ignore
     builder.Services.AddScoped<IListsService, ListsService>() |> ignore
 
+    builder.Services.AddScoped<IFavoritesDataAccess, FavoritesDataAccess>()
+    |> ignore
+
     let application = builder.Build()
     application.RootComponents.AddFunBlazor("#app", app) |> ignore
     AppDomain.CurrentDomain.SetData("DataDirectory", AppSettings.AppDataPath)
