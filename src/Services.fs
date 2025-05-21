@@ -361,7 +361,19 @@ type ListsService(handler: IHttpHandler) =
     interface IListsService with
         member this.GetCodecs() = getNameAndCounts "codecs"
         member this.GetCountryCodes() = getNameAndCounts "countrycodes"
-        member this.GetTags() = getNameAndCounts "tags"
+
+        member this.GetTags() =
+            async {
+                let parameters =
+                    [ "limit", "100"
+                      "offset", "0"
+                      "order", "stationcount"
+                      "reverse", "true"
+                      "hidebroken", "true" ]
+
+                let! jsonString = handler.GetJsonStringAsync("tags", parameters)
+                return NameAndCountProvider.ParseList(jsonString)
+            }
 
         member this.GetCountries() =
             async {

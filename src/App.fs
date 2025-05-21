@@ -48,6 +48,12 @@ type IShareStore with
     member store.SelectedStationIsFavorite =
         store.CreateCVal(nameof store.SelectedStationIsFavorite, false)
 
+    member store.Countries =
+        store.CreateCVal(nameof store.Countries, Array.Empty<CountriesProvider.Country>())
+
+    member store.Tags =
+        store.CreateCVal(nameof store.Tags, Array.Empty<NameAndCountProvider.NameAndCount>())
+
     member store.Volume = store.CreateCVal(nameof store.Volume, 0.5)
 
     member store.SearchMode = store.CreateCVal(nameof store.SearchMode, ByVotes)
@@ -291,63 +297,148 @@ let stationsByCountry (countryCode: string) =
             }
         })
 
+let stationsByTag (tag: string) =
+    html.inject (fun (store: IShareStore, stationsService: IStationsService, hook: IComponentHook) ->
+        hook.AddFirstAfterRenderTask(fun _ ->
+            task {
+                let searchParams =
+                    SearchStationParameters(None, None, None, None, Some tag, None, None)
+
+                store.SearchMode.Publish(Search searchParams)
+                let parameters = getParameters (0, stationsService.Settings)
+                let! stations = stationsService.SearchStations(searchParams, parameters)
+                store.Stations.Publish stations
+            })
+
+        stationsList store)
+
 let homePage =
     html.inject (fun (options: IOptions<AppSettings>) ->
         let countryCode = options.Value.CurrentRegion.TwoLetterISORegionName
         stationsByCountry countryCode)
 
 let countriesPage =
-    html.inject (fun (store: IShareStore, listsService: IListsService, navigation: NavigationManager) ->
-        fragment {
-            let countries = listsService.GetCountries() |> Async.RunSynchronously
+    html.inject
+        (fun (store: IShareStore, listsService: IListsService, navigation: NavigationManager, hook: IComponentHook) ->
+            hook.AddFirstAfterRenderTask(fun _ ->
+                task {
+                    if not (store.Countries.Value.Any()) then
+                        let! countries = listsService.GetCountries()
+                        store.Countries.Publish countries
+                })
 
-            adapt {
-                let! searchString, setSearchString = cval("").WithSetter()
+            fragment {
+                adapt {
+                    let! countries, setCountries = store.Countries.WithSetter()
+                    let! searchString, setSearchString = cval("").WithSetter()
 
-                let filteredCountries =
-                    if String.IsNullOrWhiteSpace searchString then
-                        countries |> Array.distinctBy (fun c -> c.Name)
-                    else
-                        countries
-                        |> Array.filter (fun c -> c.Name.ToLower().Contains(searchString.ToLower()))
-                        |> Array.distinctBy (fun c -> c.Name)
+                    let filteredCountries =
+                        if String.IsNullOrWhiteSpace searchString then
+                            countries |> Array.distinctBy (fun c -> c.Name)
+                        else
+                            countries
+                            |> Array.filter (fun c -> c.Name.ToLower().Contains(searchString.ToLower()))
+                            |> Array.distinctBy (fun c -> c.Name)
 
-                div {
-                    style' "margin:10px;"
+                    div {
+                        style' "margin:10px;"
 
-                    FluentTextField'' {
-                        Label "Filter countries"
-                        Placeholder "country name"
-                        Immediate true
-                        Value searchString
-                        ValueChanged(fun s -> setSearchString s)
+                        FluentTextField'' {
+                            Label "Filter countries"
+                            Placeholder "country name"
+                            Immediate true
+                            Value searchString
+                            ValueChanged(fun s -> setSearchString s)
+                        }
+                    }
+
+                    div {
+                        class' "countries-list"
+
+                        for country in filteredCountries do
+                            div {
+                                class' "country"
+                                title' $"{country.Name} (Count of stations: {country.Stationcount})"
+                                onclick (fun _ -> navigation.NavigateTo $"/stationsByCountry/{country.Iso31661}")
+
+                                div {
+                                    class' "country-name"
+                                    country.Name
+                                }
+
+                                img {
+                                    class' "country-image"
+                                    src $"./images/flags/{country.Iso31661.ToLower()}.svg"
+                                    loadingExperimental true
+                                }
+                            }
+
                     }
                 }
+            })
 
-                div {
-                    class' "countries-list"
+let tagsPage =
+    html.inject
+        (fun (store: IShareStore, listsService: IListsService, navigation: NavigationManager, hook: IComponentHook) ->
+            hook.AddFirstAfterRenderTask(fun _ ->
+                task {
+                    if not (store.Tags.Value.Any()) then
+                        let! tags = listsService.GetTags()
+                        store.Tags.Publish tags
+                })
 
-                    for country in filteredCountries do
+            fragment {
+                adapt {
+                    let! tags, setTags = store.Tags.WithSetter()
+
+                    let getColor () =
+                        let r = Random().Next(150, 255)
+                        let g = Random().Next(150, 255)
+                        let b = Random().Next(150, 255)
+                        r, g, b
+
+                    let invertColor (rgb: int * int * int) =
+                        rgb |> fun (r, g, b) -> (255 - r), (255 - g), (255 - b)
+
+                    let colorToRGBString (rgb: int * int * int) =
+                        rgb |> fun (r, g, b) -> $"rgb({r},{g},{b})"
+
+
+                    let calculateFontSize (minCount: int) (maxCount: int) (count: int) =
+                        let minSize = 12.0
+                        let maxSize = 32.0
+
+                        minSize
+                        + (maxSize - minSize) * float (count - minCount) / float (maxCount - minCount)
+
+                    if tags.Length = 0 then
+                        div { "is loading..." }
+                    else
+                        let minCount = tags |> Array.map (fun x -> x.Stationcount) |> Array.min
+                        let maxCount = tags |> Array.map (fun x -> x.Stationcount) |> Array.max
+
                         div {
-                            class' "country"
-                            title' $"{country.Name} (Count of stations: {country.Stationcount})"
-                            onclick (fun _ -> navigation.NavigateTo $"/stationsByCountry/{country.Iso31661}")
+                            class' "tags-list"
 
-                            div {
-                                class' "country-name"
-                                country.Name
-                            }
+                            for tag in tags do
+                                let rColor = getColor ()
+                                let invertedColor = invertColor rColor
 
-                            img {
-                                class' "country-image"
-                                src $"./images/flags/{country.Iso31661.ToLower()}.svg"
-                                loadingExperimental true
-                            }
+                                a {
+                                    class' "tag-item"
+
+                                    style {
+                                        backgroundColor (colorToRGBString rColor)
+                                        color (colorToRGBString invertedColor)
+                                        fontSize $"{calculateFontSize minCount maxCount tag.Stationcount}px"
+                                    }
+
+                                    href $"/stationsByTag/{tag.Name}"
+                                    tag.Name
+                                }
                         }
-
                 }
-            }
-        })
+            })
 
 let favoriteStations =
     html.inject (fun (store: IShareStore, stationsService: IStationsService, hook: IComponentHook) ->
@@ -668,16 +759,23 @@ let navmenus =
                 }
 
                 FluentNavLink'' {
+                    Href "/tags"
+                    Match NavLinkMatch.Prefix
+                    Icon(Icons.Regular.Size20.Tag())
+                    "By tags"
+                }
+
+                FluentNavLink'' {
                     Href "/stationsByVotes"
                     Match NavLinkMatch.Prefix
-                    Icon(Icons.Regular.Size20.MusicNote1())
+                    Icon(Icons.Regular.Size20.Vote())
                     "By votes"
                 }
 
                 FluentNavLink'' {
                     Href "/stationsByClicks"
                     Match NavLinkMatch.Prefix
-                    Icon(Icons.Regular.Size20.MusicNote1())
+                    Icon(Icons.Regular.Size20.CursorClick())
                     "By clicks"
                 }
             }
@@ -690,6 +788,8 @@ let routes =
            routeCi "/favorites" favoriteStations
            routeCi "/countries" countriesPage
            routeCif "/stationsByCountry/%s" (fun x -> stationsByCountry (x))
+           routeCi "/tags" tagsPage
+           routeCif "/stationsByTag/%s" (fun x -> stationsByTag (x))
            routeAny homePage |]
 
 let app =
