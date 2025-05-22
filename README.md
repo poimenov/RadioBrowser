@@ -1,31 +1,31 @@
 # RadioBrowser
 
-Search screen:
-![Screenshot of the script UI](/img/radioBrowser.Search.jpg)
+Photino Blazor application screen:
+![Screenshot of the script UI](/img/radioBrowser.Photino.jpg)
 
-Favorites screen:
-![Screenshot of the script UI](/img/radioBrowser.Favorites.jpg)
+F# Script screen:
+![Screenshot of the script UI](/img/radioBrowser.Script.jpg)
 
 ## Description
 
-Script for playing radio stations from [radio browser](https://www.radio-browser.info/)
+Photino Blazor application and F# script for playing radio stations from [radio browser](https://www.radio-browser.info/)
 
 ### Prerequisites
 
 .Net SDK 
 
-FFMpeg
+and for F# script FFMpeg
 
 ### Installation
 
+```bash
 Clone the repo:
 git clone https://github.com/poimenov/RadioBrowser.git
-
-To run:
-
-```bash
-dotnet fsi radioBrowser.fsx
 ```
+
+To run F# script:
+
+
 
 If you run into problems in linux, you may need to install vlc and vlc dev related libraries
 
