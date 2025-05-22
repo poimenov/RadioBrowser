@@ -18,13 +18,17 @@ and for F# script FFMpeg
 
 ### Installation
 
-```bash
 Clone the repo:
+
+```bash
 git clone https://github.com/poimenov/RadioBrowser.git
 ```
 
 To run F# script:
 
+```bash
+dotnet fsi RadioBrowser.fsx
+```
 
 
 If you run into problems in linux, you may need to install vlc and vlc dev related libraries
