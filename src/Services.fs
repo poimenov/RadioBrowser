@@ -298,6 +298,8 @@ type StationsService(handler: IHttpHandler, dataAccess: IFavoritesDataAccess, op
               "codec", searchParameters.Codec.Value
           "offset", string parameters.Offset
           "limit", string parameters.Limit
+          "order", "votes"
+          "reverse", "true"
           "hidebroken", string parameters.Hidebroken ]
 
     let getStations (json: string) =
@@ -365,7 +367,7 @@ type ListsService(handler: IHttpHandler) =
         member this.GetTags() =
             async {
                 let parameters =
-                    [ "limit", "100"
+                    [ "limit", "130"
                       "offset", "0"
                       "order", "stationcount"
                       "reverse", "true"

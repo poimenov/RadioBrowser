@@ -206,7 +206,7 @@ let stationsList (store: IShareStore) =
                 div {
                     style' "text-align:center;"
 
-                    "No stations found."
+                    "Is loading..."
                 }
         }
     }
@@ -384,7 +384,19 @@ let tagsPage =
                 task {
                     if not (store.Tags.Value.Any()) then
                         let! tags = listsService.GetTags()
-                        store.Tags.Publish tags
+                        let ind = tags |> Array.mapi (fun i t -> (i, t))
+
+                        let odds =
+                            ind
+                            |> Array.filter (fun (i, _) -> i % 2 = 1)
+                            |> Array.map (fun (_, t) -> t)
+                            |> Array.rev
+
+                        let ev =
+                            ind |> Array.filter (fun (i, _) -> i % 2 = 0) |> Array.map (fun (_, t) -> t)
+
+                        let result = Array.append odds ev
+                        store.Tags.Publish result
                 })
 
             fragment {
@@ -405,14 +417,17 @@ let tagsPage =
 
 
                     let calculateFontSize (minCount: int) (maxCount: int) (count: int) =
-                        let minSize = 12.0
-                        let maxSize = 32.0
+                        let minSize = 10.0
+                        let maxSize = 64.0
 
                         minSize
                         + (maxSize - minSize) * float (count - minCount) / float (maxCount - minCount)
 
                     if tags.Length = 0 then
-                        div { "is loading..." }
+                        div {
+                            style' "text-align:center;"
+                            "is loading..."
+                        }
                     else
                         let minCount = tags |> Array.map (fun x -> x.Stationcount) |> Array.min
                         let maxCount = tags |> Array.map (fun x -> x.Stationcount) |> Array.max
@@ -423,16 +438,24 @@ let tagsPage =
                             for tag in tags do
                                 let rColor = getColor ()
                                 let invertedColor = invertColor rColor
+                                let rSize = calculateFontSize minCount maxCount tag.Stationcount
+                                let fSize = Math.Round(rSize) |> int
+                                let paddingSize = (if rSize > 25.0 then Math.Round(rSize / 5.0) else 0.0) |> int
+                                let heightSize = (rSize + 2.0 * Math.Round(rSize / 5.0)) |> int
+
+                                let allStyle =
+                                    $"font-size:{fSize}px;color:{colorToRGBString invertedColor};background-color:{colorToRGBString rColor};"
+
+                                let style =
+                                    if rSize > 25.0 then
+                                        $"height:{heightSize}px;padding-top:{paddingSize}px;"
+                                    else
+                                        ""
 
                                 a {
                                     class' "tag-item"
-
-                                    style {
-                                        backgroundColor (colorToRGBString rColor)
-                                        color (colorToRGBString invertedColor)
-                                        fontSize $"{calculateFontSize minCount maxCount tag.Stationcount}px"
-                                    }
-
+                                    title' $"{tag.Name} (Count of stations: {tag.Stationcount})"
+                                    style' $"{allStyle}{style}"
                                     href $"/stationsByTag/{tag.Name}"
                                     tag.Name
                                 }
