@@ -5,5 +5,53 @@
     </data>
     <data name="SwitchTheme" xml:space="preserve">
         <value>Переключить тему</value>
-    </data>                          
+    </data>      
+    <data name="Home" xml:space="preserve">
+        <value>Домашняя</value>
+    </data>     
+    <data name="Favorites" xml:space="preserve">
+        <value>Избранное</value>
+    </data>    
+    <data name="ByCountry" xml:space="preserve">
+        <value>По Странам</value>
+    </data>    
+    <data name="ByTags" xml:space="preserve">
+        <value>По Жанрам</value>
+    </data>     
+    <data name="ByVotes" xml:space="preserve">
+        <value>По Голосованию</value>
+    </data>    
+    <data name="ByClicks" xml:space="preserve">
+        <value>По Кликам</value>
+    </data>    
+    <data name="NoStationSelected" xml:space="preserve">
+        <value>Не выбрана станция</value>
+    </data> 
+    <data name="PlayPause" xml:space="preserve">
+        <value>Играть/Стоп</value>
+    </data>    
+    <data name="AddToFavorites" xml:space="preserve">
+        <value>Добавить/Удалить Из Избранного</value>
+    </data> 
+    <data name="Volume" xml:space="preserve">
+        <value>Громкость</value>
+    </data> 
+    <data name="IsLoading" xml:space="preserve">
+        <value>Загружается...</value>
+    </data> 
+    <data name="StationsCount" xml:space="preserve">
+        <value>Кол-во Станций</value>
+    </data>    
+    <data name="FilterCountries" xml:space="preserve">
+        <value>Фильтр Стран</value>
+    </data>     
+    <data name="CountryName" xml:space="preserve">
+        <value>Название Страны</value>
+    </data> 
+    <data name="FilterStations" xml:space="preserve">
+        <value>Фильтр Станций</value>
+    </data>         
+    <data name="StationNamePlaceholder" xml:space="preserve">
+        <value>Название Станции (мин 3 символа)</value>
+    </data>       
 </root>

@@ -124,9 +124,7 @@ type NameAndCountProvider =
     JsonProvider<
         Sample="../src/json/NameAndCount.json",
         SampleIsList=true,
-        RootName="NameAndCount",  // |> Array.tryFind (fun x -> x.Key = id)
-        // |> Option.map (fun x -> x.Value)
-        // |> Option.defaultValue false
+        RootName="NameAndCount",
         Encoding="utf-8",
         EmbeddedResource="RadioBrowser, RadioBrowser.json.NameAndCount.json"
      >

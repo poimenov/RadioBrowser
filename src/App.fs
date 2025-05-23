@@ -153,7 +153,7 @@ let stationItem (station: Station, isFavorite: bool) =
         }
     }
 
-let stationsList (store: IShareStore) =
+let stationsList (store: IShareStore, localizer: IStringLocalizer<SharedResources>) =
     div {
         style' "padding:10px;"
 
@@ -206,111 +206,129 @@ let stationsList (store: IShareStore) =
                 div {
                     style' "text-align:center;"
 
-                    "Is loading..."
+                    localizer["IsLoading"]
                 }
         }
     }
 
 let stationsByCountry (countryCode: string) =
-    html.inject (fun (store: IShareStore, stationsService: IStationsService, hook: IComponentHook) ->
-        let getStationsByCountryCode (code: string) =
-            async {
-                let searchParams =
-                    SearchStationParameters(None, None, Some code, None, None, None, None)
+    html.inject
+        (fun
+            (store: IShareStore,
+             stationsService: IStationsService,
+             localizer: IStringLocalizer<SharedResources>,
+             hook: IComponentHook) ->
+            let getStationsByCountryCode (code: string) =
+                async {
+                    let searchParams =
+                        SearchStationParameters(None, None, Some code, None, None, None, None)
 
-                store.SearchMode.Publish(Search searchParams)
-                let parameters = getParameters (0, stationsService.Settings)
-                return! stationsService.SearchStations(searchParams, parameters)
-            }
-
-        hook.AddFirstAfterRenderTask(fun _ ->
-            task {
-                let! stations = getStationsByCountryCode (countryCode)
-                store.Stations.Publish stations
-            })
-
-        fragment {
-            adapt {
-                let! searchString, setSearchString = cval("").WithSetter()
-
-                let searchEnabled (str: string) =
-                    str.Trim().Length > 2 && str.Trim().Length < 36
-
-                let filterStations (name: string) =
-                    async {
-                        let searchParams =
-                            SearchStationParameters(Some name, Some false, Some countryCode, None, None, None, None)
-
-                        store.SearchMode.Publish(Search searchParams)
-                        let parameters = getParameters (0, stationsService.Settings)
-                        return! stationsService.SearchStations(searchParams, parameters)
-                    }
-
-                let getStations (str: string) =
-                    async {
-                        if searchEnabled str then
-                            return! filterStations searchString
-                        else
-                            return! getStationsByCountryCode countryCode
-                    }
-
-                div {
-                    style' "margin:10px;"
-
-                    FluentStack'' {
-                        Orientation Orientation.Horizontal
-                        VerticalAlignment VerticalAlignment.Center
-
-                        FluentTextField'' {
-                            Label "Filter stations"
-                            Placeholder "station name (min 3 chars)"
-                            style' "width:250px;"
-                            Immediate true
-                            minlength 3
-                            maxlength 35
-
-                            onkeydown (fun e ->
-                                task {
-                                    if e.Key = "Enter" then
-                                        let! stations = getStations searchString
-                                        store.Stations.Publish stations
-                                })
-
-                            Value searchString
-                            ValueChanged(fun s -> setSearchString s)
-                        }
-
-                        FluentButton'' {
-                            IconStart(Icons.Regular.Size20.Search())
-                            Title "Search"
-
-                            OnClick(fun _ ->
-                                task {
-                                    let! stations = getStations searchString
-                                    store.Stations.Publish stations
-                                })
-                        }
-                    }
+                    store.SearchMode.Publish(Search searchParams)
+                    let parameters = getParameters (0, stationsService.Settings)
+                    return! stationsService.SearchStations(searchParams, parameters)
                 }
 
-                stationsList store
-            }
-        })
+            hook.AddFirstAfterRenderTask(fun _ ->
+                task {
+                    let! stations = getStationsByCountryCode (countryCode)
+                    store.Stations.Publish stations
+                })
 
-let stationsByTag (tag: string) =
-    html.inject (fun (store: IShareStore, stationsService: IStationsService, hook: IComponentHook) ->
-        hook.AddFirstAfterRenderTask(fun _ ->
-            task {
-                let searchParams =
-                    SearchStationParameters(None, None, None, None, Some tag, None, None)
+            fragment {
+                adapt {
+                    let! searchString, setSearchString = cval("").WithSetter()
 
-                store.SearchMode.Publish(Search searchParams)
-                let parameters = getParameters (0, stationsService.Settings)
-                let! stations = stationsService.SearchStations(searchParams, parameters)
-                store.Stations.Publish stations
+                    let searchEnabled (str: string) =
+                        str.Trim().Length > 2 && str.Trim().Length < 36
+
+                    let filterStations (name: string) =
+                        async {
+                            let searchParams =
+                                SearchStationParameters(
+                                    Some name,
+                                    Some false,
+                                    Some countryCode,
+                                    None,
+                                    None,
+                                    None,
+                                    None
+                                )
+
+                            store.SearchMode.Publish(Search searchParams)
+                            let parameters = getParameters (0, stationsService.Settings)
+                            return! stationsService.SearchStations(searchParams, parameters)
+                        }
+
+                    let getStations (str: string) =
+                        async {
+                            if searchEnabled str then
+                                return! filterStations searchString
+                            else
+                                return! getStationsByCountryCode countryCode
+                        }
+
+                    div {
+                        style' "margin:10px;"
+
+                        FluentStack'' {
+                            Orientation Orientation.Horizontal
+                            VerticalAlignment VerticalAlignment.Center
+
+                            FluentTextField'' {
+                                Label(string (localizer["FilterStations"]))
+                                Placeholder(string (localizer["StationNamePlaceholder"]))
+                                style' "width:250px;"
+                                Immediate true
+                                minlength 3
+                                maxlength 35
+
+                                onkeydown (fun e ->
+                                    task {
+                                        if e.Key = "Enter" then
+                                            let! stations = getStations searchString
+                                            store.Stations.Publish stations
+                                    })
+
+                                Value searchString
+                                ValueChanged(fun s -> setSearchString s)
+                            }
+
+                            FluentButton'' {
+                                IconStart(Icons.Regular.Size20.Search())
+                                Title "Search"
+
+                                OnClick(fun _ ->
+                                    task {
+                                        let! stations = getStations searchString
+                                        store.Stations.Publish stations
+                                    })
+                            }
+                        }
+                    }
+
+                    stationsList (store, localizer)
+                }
             })
 
-        stationsList store)
+let stationsByTag (tag: string) =
+    html.inject
+        (fun
+            (store: IShareStore,
+             stationsService: IStationsService,
+             localizer: IStringLocalizer<SharedResources>,
+             hook: IComponentHook) ->
+            hook.AddFirstAfterRenderTask(fun _ ->
+                task {
+                    let searchParams =
+                        SearchStationParameters(None, None, None, None, Some tag, None, None)
+
+                    store.SearchMode.Publish(Search searchParams)
+                    let parameters = getParameters (0, stationsService.Settings)
+                    let! stations = stationsService.SearchStations(searchParams, parameters)
+                    store.Stations.Publish stations
+                })
+
+            stationsList (store, localizer))
 
 let homePage =
     html.inject (fun (options: IOptions<AppSettings>) ->
@@ -319,7 +337,12 @@ let homePage =
 
 let countriesPage =
     html.inject
-        (fun (store: IShareStore, listsService: IListsService, navigation: NavigationManager, hook: IComponentHook) ->
+        (fun
+            (store: IShareStore,
+             listsService: IListsService,
+             navigation: NavigationManager,
+             localizer: IStringLocalizer<SharedResources>,
+             hook: IComponentHook) ->
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     if not (store.Countries.Value.Any()) then
@@ -340,46 +363,60 @@ let countriesPage =
                             |> Array.filter (fun c -> c.Name.ToLower().Contains(searchString.ToLower()))
                             |> Array.distinctBy (fun c -> c.Name)
 
-                    div {
-                        style' "margin:10px;"
 
-                        FluentTextField'' {
-                            Label "Filter countries"
-                            Placeholder "country name"
-                            Immediate true
-                            Value searchString
-                            ValueChanged(fun s -> setSearchString s)
+                    if countries.Length = 0 then
+                        div {
+                            style' "text-align:center;"
+                            localizer["IsLoading"]
                         }
-                    }
+                    else
+                        div {
+                            style' "margin:10px;"
 
-                    div {
-                        class' "countries-list"
-
-                        for country in filteredCountries do
-                            div {
-                                class' "country"
-                                title' $"{country.Name} (Count of stations: {country.Stationcount})"
-                                onclick (fun _ -> navigation.NavigateTo $"/stationsByCountry/{country.Iso31661}")
-
-                                div {
-                                    class' "country-name"
-                                    country.Name
-                                }
-
-                                img {
-                                    class' "country-image"
-                                    src $"./images/flags/{country.Iso31661.ToLower()}.svg"
-                                    loadingExperimental true
-                                }
+                            FluentTextField'' {
+                                Label(string (localizer["FilterCountries"]))
+                                Placeholder(string (localizer["CountryName"]))
+                                Immediate true
+                                Value searchString
+                                ValueChanged(fun s -> setSearchString s)
                             }
+                        }
 
-                    }
+                        div {
+                            class' "countries-list"
+
+                            for country in filteredCountries do
+                                div {
+                                    class' "country"
+
+                                    title'
+                                        $"""{country.Name.ToUpper()} ({localizer["StationsCount"]}: {country.Stationcount})"""
+
+                                    onclick (fun _ -> navigation.NavigateTo $"/stationsByCountry/{country.Iso31661}")
+
+                                    div {
+                                        class' "country-name"
+                                        country.Name
+                                    }
+
+                                    img {
+                                        class' "country-image"
+                                        src $"./images/flags/{country.Iso31661.ToLower()}.svg"
+                                        loadingExperimental true
+                                    }
+                                }
+
+                        }
                 }
             })
 
 let tagsPage =
     html.inject
-        (fun (store: IShareStore, listsService: IListsService, navigation: NavigationManager, hook: IComponentHook) ->
+        (fun
+            (store: IShareStore,
+             listsService: IListsService,
+             localizer: IStringLocalizer<SharedResources>,
+             hook: IComponentHook) ->
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     if not (store.Tags.Value.Any()) then
@@ -410,7 +447,7 @@ let tagsPage =
                         r, g, b
 
                     let invertColor (rgb: int * int * int) =
-                        rgb |> fun (r, g, b) -> (255 - r), (255 - g), (255 - b)
+                        rgb |> fun (r, g, b) -> 255 - r, 255 - g, 255 - b
 
                     let colorToRGBString (rgb: int * int * int) =
                         rgb |> fun (r, g, b) -> $"rgb({r},{g},{b})"
@@ -426,7 +463,7 @@ let tagsPage =
                     if tags.Length = 0 then
                         div {
                             style' "text-align:center;"
-                            "is loading..."
+                            localizer["IsLoading"]
                         }
                     else
                         let minCount = tags |> Array.map (fun x -> x.Stationcount) |> Array.min
@@ -441,7 +478,7 @@ let tagsPage =
                                 let rSize = calculateFontSize minCount maxCount tag.Stationcount
                                 let fSize = Math.Round(rSize) |> int
                                 let paddingSize = (if rSize > 25.0 then Math.Round(rSize / 5.0) else 0.0) |> int
-                                let heightSize = (rSize + 2.0 * Math.Round(rSize / 5.0)) |> int
+                                let heightSize = rSize + 2.0 * Math.Round(rSize / 5.0) |> int
 
                                 let allStyle =
                                     $"font-size:{fSize}px;color:{colorToRGBString invertedColor};background-color:{colorToRGBString rColor};"
@@ -454,7 +491,10 @@ let tagsPage =
 
                                 a {
                                     class' "tag-item"
-                                    title' $"{tag.Name} (Count of stations: {tag.Stationcount})"
+
+                                    title'
+                                        $"""{tag.Name.ToUpper()} ({localizer["StationsCount"]}: {tag.Stationcount})"""
+
                                     style' $"{allStyle}{style}"
                                     href $"/stationsByTag/{tag.Name}"
                                     tag.Name
@@ -464,44 +504,64 @@ let tagsPage =
             })
 
 let favoriteStations =
-    html.inject (fun (store: IShareStore, stationsService: IStationsService, hook: IComponentHook) ->
-        hook.AddFirstAfterRenderTask(fun _ ->
-            task {
-                store.SearchMode.Publish Favorites
-                let parameters = getParameters (0, stationsService.Settings)
-                let! stations = stationsService.GetFavoriteStations parameters
-                store.Stations.Publish stations
-            })
+    html.inject
+        (fun
+            (store: IShareStore,
+             stationsService: IStationsService,
+             localizer: IStringLocalizer<SharedResources>,
+             hook: IComponentHook) ->
+            hook.AddFirstAfterRenderTask(fun _ ->
+                task {
+                    store.SearchMode.Publish Favorites
+                    let parameters = getParameters (0, stationsService.Settings)
+                    let! stations = stationsService.GetFavoriteStations parameters
+                    store.Stations.Publish stations
+                })
 
-        stationsList store)
+            stationsList (store, localizer))
 
 let stationsByVotes =
-    html.inject (fun (store: IShareStore, stationsService: IStationsService, hook: IComponentHook) ->
-        hook.AddFirstAfterRenderTask(fun _ ->
-            task {
-                store.SearchMode.Publish ByVotes
-                let parameters = getParameters (0, stationsService.Settings)
-                let! stations = stationsService.GetStationsByVotes parameters
-                store.Stations.Publish stations
-            })
+    html.inject
+        (fun
+            (store: IShareStore,
+             stationsService: IStationsService,
+             localizer: IStringLocalizer<SharedResources>,
+             hook: IComponentHook) ->
+            hook.AddFirstAfterRenderTask(fun _ ->
+                task {
+                    store.SearchMode.Publish ByVotes
+                    let parameters = getParameters (0, stationsService.Settings)
+                    let! stations = stationsService.GetStationsByVotes parameters
+                    store.Stations.Publish stations
+                })
 
-        stationsList store)
+            stationsList (store, localizer))
 
 let stationsByClicks =
-    html.inject (fun (store: IShareStore, stationsService: IStationsService, hook: IComponentHook) ->
-        hook.AddFirstAfterRenderTask(fun _ ->
-            task {
-                store.SearchMode.Publish ByClicks
-                let parameters = getParameters (0, stationsService.Settings)
-                let! stations = stationsService.GetStationsByClicks parameters
-                store.Stations.Publish stations
-            })
+    html.inject
+        (fun
+            (store: IShareStore,
+             stationsService: IStationsService,
+             localizer: IStringLocalizer<SharedResources>,
+             hook: IComponentHook) ->
+            hook.AddFirstAfterRenderTask(fun _ ->
+                task {
+                    store.SearchMode.Publish ByClicks
+                    let parameters = getParameters (0, stationsService.Settings)
+                    let! stations = stationsService.GetStationsByClicks parameters
+                    store.Stations.Publish stations
+                })
 
-        stationsList store)
+            stationsList (store, localizer))
 
 let player =
     html.inject
-        (fun (store: IShareStore, jsRuntime: IJSRuntime, dataAccess: IFavoritesDataAccess, los: ILinkOpeningService) ->
+        (fun
+            (store: IShareStore,
+             jsRuntime: IJSRuntime,
+             dataAccess: IFavoritesDataAccess,
+             localizer: IStringLocalizer<SharedResources>,
+             los: ILinkOpeningService) ->
             adapt {
                 let! selectedStation = store.SelectedStation
                 let! isPlaying, setIsPlaying = cval(false).WithSetter()
@@ -513,7 +573,7 @@ let player =
                 | NotSelected ->
                     div {
                         style' "text-align:center;"
-                        "No station selected"
+                        localizer["NoStationSelected"]
                     }
                 | Selected station ->
                     FluentStack'' {
@@ -521,7 +581,6 @@ let player =
                         VerticalAlignment VerticalAlignment.Center
 
                         stationIcon station.Favicon
-
 
                         FluentStack'' {
                             Orientation Orientation.Vertical
@@ -585,6 +644,7 @@ let player =
 
                         FluentButton'' {
                             class' "player-button"
+                            Title(string (localizer["AddToFavorites"]))
 
                             IconStart(
                                 if selectedStationIsFavorite then
@@ -608,12 +668,14 @@ let player =
                         FluentButton'' {
                             Id "player-button-volume"
                             class' "player-button"
+                            Title(string (localizer["Volume"]))
                             IconStart(Icons.Regular.Size48.Speaker2())
                             OnClick(fun _ -> setVisiblePopover true)
                         }
 
                         FluentButton'' {
                             class' "player-button"
+                            Title(string (localizer["PlayPause"]))
 
                             IconStart(
                                 if isPlaying then
@@ -750,7 +812,7 @@ let appFooter =
         })
 
 let navmenus =
-    html.injectWithNoKey (fun (store: IShareStore) ->
+    html.injectWithNoKey (fun (store: IShareStore, localizer: IStringLocalizer<SharedResources>) ->
         adaptiview () {
             let! binding = store.IsMenuOpen.WithSetter()
 
@@ -764,42 +826,48 @@ let navmenus =
                     Href "/"
                     Match NavLinkMatch.All
                     Icon(Icons.Regular.Size20.Home())
-                    "Home"
+                    Tooltip(string (localizer["Home"]))
+                    localizer["Home"]
                 }
 
                 FluentNavLink'' {
                     Href "/favorites"
                     Match NavLinkMatch.Prefix
                     Icon(Icons.Regular.Size20.Heart())
-                    "Favorites"
+                    Tooltip(string (localizer["Favorites"]))
+                    localizer["Favorites"]
                 }
 
                 FluentNavLink'' {
                     Href "/countries"
                     Match NavLinkMatch.Prefix
                     Icon(Icons.Regular.Size20.Flag())
-                    "By country"
+                    Tooltip(string (localizer["ByCountry"]))
+                    localizer["ByCountry"]
                 }
 
                 FluentNavLink'' {
                     Href "/tags"
                     Match NavLinkMatch.Prefix
                     Icon(Icons.Regular.Size20.Tag())
-                    "By tags"
+                    Tooltip(string (localizer["ByTags"]))
+                    localizer["ByTags"]
                 }
 
                 FluentNavLink'' {
                     Href "/stationsByVotes"
                     Match NavLinkMatch.Prefix
                     Icon(Icons.Regular.Size20.Vote())
-                    "By votes"
+                    Tooltip(string (localizer["ByVotes"]))
+                    localizer["ByVotes"]
                 }
 
                 FluentNavLink'' {
                     Href "/stationsByClicks"
                     Match NavLinkMatch.Prefix
                     Icon(Icons.Regular.Size20.CursorClick())
-                    "By clicks"
+                    Tooltip(string (localizer["ByClicks"]))
+                    localizer["ByClicks"]
                 }
             }
         })
