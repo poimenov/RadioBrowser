@@ -234,33 +234,43 @@ type IHttpHandler =
     abstract member GetJsonStringAsync: url: string * parameters: list<string * string> -> Async<string>
 
 type HttpHandler(apiUrlProvider: IApiUrlProvider, logger: ILogger<HttpHandler>) =
-    interface IHttpHandler with
-        member this.GetJsonStringAsync(url: string, parameters: (string * string) list) : Async<string> =
-            async {
-                let! result =
+    let writeErrorAndReturnEmptyArray (ex: exn, url: string, parameters: (string * string) list) =
+        let queryString =
+            parameters |> List.map (fun (k, v) -> $"{k}={v}") |> String.concat "&"
+
+        logger.LogError(
+            ex,
+            $"Error while getting responce. Url: https://{apiUrlProvider.GetUrl()}/json/{url}?{queryString}"
+        )
+
+        "[]"
+
+    let rec fetchWithRetry (url: string, parameters: (string * string) list, retries: int, delay: int) : Async<string> =
+        async {
+            try
+                return!
                     Http.AsyncRequestString(
                         url = $"https://{apiUrlProvider.GetUrl()}/json/{url}",
                         query = parameters,
                         httpMethod = "GET",
                         responseEncodingOverride = "utf-8"
                     )
-                    |> Async.Catch
 
-                return
-                    match result with
-                    | Choice1Of2 result -> result
-                    | Choice2Of2 ex ->
-                        Debug.WriteLine(ex)
+            with
+            | :? WebException as ex when ex.Status = WebExceptionStatus.ProtocolError ->
+                Debug.WriteLine(ex)
 
-                        let queryString =
-                            parameters |> List.map (fun (k, v) -> $"{k}={v}") |> String.concat "&"
+                if retries > 0 then
+                    do! Async.Sleep delay
+                    return! fetchWithRetry (url, parameters, retries - 1, delay * 2)
+                else
+                    return writeErrorAndReturnEmptyArray (ex, url, parameters)
+            | ex -> return writeErrorAndReturnEmptyArray (ex, url, parameters)
+        }
 
-                        let message =
-                            $"Error while getting stations. Url: https://{apiUrlProvider.GetUrl()}/json/{url}?{queryString}"
-
-                        logger.LogError(ex, message)
-                        "[]"
-            }
+    interface IHttpHandler with
+        member this.GetJsonStringAsync(url: string, parameters: (string * string) list) : Async<string> =
+            fetchWithRetry (url, parameters, 3, 1000)
 
 type IStationsService =
     abstract member GetStationsByClicks: parameters: GetStationParameters -> Async<Station array>
