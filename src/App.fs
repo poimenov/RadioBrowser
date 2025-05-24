@@ -120,6 +120,7 @@ let stationItem (station: Station, isFavorite: bool) =
                 if not (String.IsNullOrEmpty station.CountryCode) then
                     img {
                         class' "flag-icon"
+                        title' station.Country
                         src $"./images/flags/{station.CountryCode.ToLower()}.svg"
                         loadingExperimental true
                     }
@@ -594,6 +595,7 @@ let player =
                                 if not (String.IsNullOrEmpty station.CountryCode) then
                                     img {
                                         class' "flag-icon"
+                                        title' station.Country
                                         src $"./images/flags/{station.CountryCode.ToLower()}.svg"
                                         loadingExperimental true
                                     }
