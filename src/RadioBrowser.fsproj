@@ -8,7 +8,7 @@
   <ItemGroup>
     <Compile Include="AppSettings.fs" />
     <Compile Include="Services.fs" />
-    <Compile Include="DIExtensions.fs" />
+    
     <Compile Include="App.fs" />
     <Compile Include="Program.fs" />
     <EmbeddedResource Include="../json/*.json" />

@@ -16,6 +16,7 @@ open RadioBrowser
 let main args =
     let DATA_DIRECTORY = "DATA_DIRECTORY"
     let builder = PhotinoBlazorAppBuilder.CreateDefault(args)
+    builder.RootComponents.Add<AppComponent>("#app")
 
     let configuration =
         ConfigurationBuilder()
@@ -49,7 +50,6 @@ let main args =
     |> ignore
 
     let application = builder.Build()
-    application.RootComponents.AddFunBlazor("#app", app) |> ignore
     AppDomain.CurrentDomain.SetData("DataDirectory", AppSettings.AppDataPath)
     Environment.SetEnvironmentVariable(DATA_DIRECTORY, AppSettings.AppDataPath)
     FileInfo AppSettings.LogConfigPath |> XmlConfigurator.Configure |> ignore
