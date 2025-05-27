@@ -931,7 +931,6 @@ let app =
         }
     }
 
-
 type AppComponent() =
     inherit FunBlazorComponent()
     override this.Render() = app

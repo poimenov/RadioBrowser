@@ -10,6 +10,8 @@ F# Script screen:
 
 Photino Blazor application and F# script for playing radio stations from [radio browser](https://www.radio-browser.info/)
 
+Works on Ubuntu 24.04
+
 ### Prerequisites
 
 .Net SDK 
