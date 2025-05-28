@@ -7,11 +7,9 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="AppSettings.fs" />
-    <Compile Include="Services.fs" />
-    
+    <Compile Include="Services.fs" />    
     <Compile Include="App.fs" />
     <Compile Include="Program.fs" />
-    <EmbeddedResource Include="../json/*.json" />
   </ItemGroup>
   <ItemGroup>
     <Content Update="wwwroot\**">
