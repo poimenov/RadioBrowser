@@ -12,6 +12,7 @@ open log4net.Config
 open Photino.Blazor
 open RadioBrowser
 
+[<STAThread>]
 [<EntryPoint>]
 let main args =
     let DATA_DIRECTORY = "DATA_DIRECTORY"
