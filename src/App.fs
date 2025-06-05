@@ -374,8 +374,7 @@ let countriesPage =
                         div {
                             style' "margin:10px;"
 
-                            FluentTextField'' {
-                                Label(string (localizer["FilterCountries"]))
+                            FluentSearch'' {
                                 Placeholder(string (localizer["CountryName"]))
                                 Immediate true
                                 Value searchString
@@ -383,31 +382,38 @@ let countriesPage =
                             }
                         }
 
-                        div {
-                            class' "countries-list"
+                        if filteredCountries.Length = 0 then
+                            div {
+                                style' "text-align:center;"
+                                localizer["NoCountriesFound"]
+                            }
+                        else
+                            div {
+                                class' "countries-list"
 
-                            for country in filteredCountries do
-                                div {
-                                    class' "country"
-
-                                    title'
-                                        $"""{country.Name.ToUpper()} ({localizer["StationsCount"]}: {country.Stationcount})"""
-
-                                    onclick (fun _ -> navigation.NavigateTo $"/stationsByCountry/{country.Iso31661}")
-
+                                for country in filteredCountries do
                                     div {
-                                        class' "country-name"
-                                        country.Name
+                                        class' "country"
+
+                                        title'
+                                            $"""{country.Name.ToUpper()} ({localizer["StationsCount"]}: {country.Stationcount})"""
+
+                                        onclick (fun _ ->
+                                            navigation.NavigateTo $"/stationsByCountry/{country.Iso31661}")
+
+                                        div {
+                                            class' "country-name"
+                                            country.Name
+                                        }
+
+                                        img {
+                                            class' "country-image"
+                                            src $"./images/flags/{country.Iso31661.ToLower()}.svg"
+                                            loadingExperimental true
+                                        }
                                     }
 
-                                    img {
-                                        class' "country-image"
-                                        src $"./images/flags/{country.Iso31661.ToLower()}.svg"
-                                        loadingExperimental true
-                                    }
-                                }
-
-                        }
+                            }
                 }
             })
 
@@ -422,7 +428,16 @@ let tagsPage =
                 task {
                     if not (store.Tags.Value.Any()) then
                         let! tags = listsService.GetTags()
-                        let ind = tags |> Array.mapi (fun i t -> (i, t))
+                        store.Tags.Publish tags
+                })
+
+            fragment {
+                adapt {
+                    let! tags, setTags = store.Tags.WithSetter()
+                    let! searchString, setSearchString = cval("").WithSetter()
+
+                    let arrangeTags (arr: NameAndCountProvider.NameAndCount[]) =
+                        let ind = arr |> Array.mapi (fun i t -> (i, t))
 
                         let odds =
                             ind
@@ -433,13 +448,15 @@ let tagsPage =
                         let ev =
                             ind |> Array.filter (fun (i, _) -> i % 2 = 0) |> Array.map (fun (_, t) -> t)
 
-                        let result = Array.append odds ev
-                        store.Tags.Publish result
-                })
+                        Array.append odds ev
 
-            fragment {
-                adapt {
-                    let! tags, setTags = store.Tags.WithSetter()
+                    let filteredTags =
+                        if String.IsNullOrWhiteSpace searchString then
+                            arrangeTags tags
+                        else
+                            tags
+                            |> Array.filter (fun t -> t.Name.ToLower().Contains(searchString.ToLower()))
+                            |> arrangeTags
 
                     let getColor () =
                         let r = Random().Next(150, 255)
@@ -467,40 +484,57 @@ let tagsPage =
                             localizer["IsLoading"]
                         }
                     else
-                        let minCount = tags |> Array.map (fun x -> x.Stationcount) |> Array.min
-                        let maxCount = tags |> Array.map (fun x -> x.Stationcount) |> Array.max
-
                         div {
-                            class' "tags-list"
+                            style' "margin:10px;"
 
-                            for tag in tags do
-                                let rColor = getColor ()
-                                let invertedColor = invertColor rColor
-                                let rSize = calculateFontSize minCount maxCount tag.Stationcount
-                                let fSize = Math.Round(rSize) |> int
-                                let paddingSize = (if rSize > 25.0 then Math.Round(rSize / 5.0) else 0.0) |> int
-                                let heightSize = rSize + 2.0 * Math.Round(rSize / 5.0) |> int
-
-                                let allStyle =
-                                    $"font-size:{fSize}px;color:{colorToRGBString invertedColor};background-color:{colorToRGBString rColor};"
-
-                                let style =
-                                    if rSize > 25.0 then
-                                        $"height:{heightSize}px;padding-top:{paddingSize}px;"
-                                    else
-                                        ""
-
-                                a {
-                                    class' "tag-item"
-
-                                    title'
-                                        $"""{tag.Name.ToUpper()} ({localizer["StationsCount"]}: {tag.Stationcount})"""
-
-                                    style' $"{allStyle}{style}"
-                                    href $"/stationsByTag/{tag.Name}"
-                                    tag.Name
-                                }
+                            FluentSearch'' {
+                                Placeholder(string (localizer["TagName"]))
+                                Immediate true
+                                Value searchString
+                                ValueChanged(fun s -> setSearchString s)
+                            }
                         }
+
+                        if filteredTags.Length = 0 then
+                            div {
+                                style' "text-align:center;"
+                                localizer["NoTagsFound"]
+                            }
+                        else
+                            let minCount = filteredTags |> Array.map (fun x -> x.Stationcount) |> Array.min
+                            let maxCount = filteredTags |> Array.map (fun x -> x.Stationcount) |> Array.max
+
+                            div {
+                                class' "tags-list"
+
+                                for tag in filteredTags do
+                                    let rColor = getColor ()
+                                    let invertedColor = invertColor rColor
+                                    let rSize = calculateFontSize minCount maxCount tag.Stationcount
+                                    let fSize = Math.Round(rSize) |> int
+                                    let paddingSize = (if rSize > 25.0 then Math.Round(rSize / 5.0) else 0.0) |> int
+                                    let heightSize = rSize + 2.0 * Math.Round(rSize / 5.0) |> int
+
+                                    let allStyle =
+                                        $"font-size:{fSize}px;color:{colorToRGBString invertedColor};background-color:{colorToRGBString rColor};"
+
+                                    let style =
+                                        if rSize > 25.0 then
+                                            $"height:{heightSize}px;padding-top:{paddingSize}px;"
+                                        else
+                                            ""
+
+                                    a {
+                                        class' "tag-item"
+
+                                        title'
+                                            $"""{tag.Name.ToUpper()} ({localizer["StationsCount"]}: {tag.Stationcount})"""
+
+                                        style' $"{allStyle}{style}"
+                                        href $"/stationsByTag/{tag.Name}"
+                                        tag.Name
+                                    }
+                            }
                 }
             })
 

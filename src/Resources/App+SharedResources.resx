@@ -42,12 +42,18 @@
     </data> 
     <data name="StationsCount" xml:space="preserve">
         <value>Stations Count</value>
-    </data>    
-    <data name="FilterCountries" xml:space="preserve">
-        <value>Filter Countries</value>
-    </data>     
+    </data>        
     <data name="CountryName" xml:space="preserve">
         <value>Country Name</value>
+    </data> 
+    <data name="NoCountriesFound" xml:space="preserve">
+        <value>No Countries Found</value>
+    </data>     
+    <data name="TagName" xml:space="preserve">
+        <value>Tag Name</value>
+    </data>  
+    <data name="NoTagsFound" xml:space="preserve">
+        <value>No Tags Found</value>
     </data>     
     <data name="FilterStations" xml:space="preserve">
         <value>Filter Stations</value>

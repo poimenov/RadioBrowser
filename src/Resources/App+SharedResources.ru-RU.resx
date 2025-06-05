@@ -41,13 +41,19 @@
     </data> 
     <data name="StationsCount" xml:space="preserve">
         <value>Кол-во Станций</value>
-    </data>    
-    <data name="FilterCountries" xml:space="preserve">
-        <value>Фильтр Стран</value>
-    </data>     
+    </data>        
     <data name="CountryName" xml:space="preserve">
         <value>Название Страны</value>
     </data> 
+    <data name="NoCountriesFound" xml:space="preserve">
+        <value>Страна не найдена</value>
+    </data>     
+    <data name="TagName" xml:space="preserve">
+        <value>Название тэга</value>
+    </data>  
+    <data name="NoTagsFound" xml:space="preserve">
+        <value>Тэг не найден</value>
+    </data>     
     <data name="FilterStations" xml:space="preserve">
         <value>Фильтр Станций</value>
     </data>         
