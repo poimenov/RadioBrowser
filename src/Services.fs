@@ -94,40 +94,16 @@ type ApiUrlProvider(logger: ILogger<ApiUrlProvider>) =
                 fallbackUrl // Return fallback URL on error
 
 type StationsProvider =
-    JsonProvider<
-        Sample="../src/json/Stations.json",
-        SampleIsList=true,
-        RootName="Stations",
-        Encoding="utf-8",
-        EmbeddedResource="RadioBrowser, RadioBrowser.json.Stations.json"
-     >
+    JsonProvider<Sample="../src/json/Stations.json", SampleIsList=true, RootName="Stations", Encoding="utf-8">
 
 type CountriesProvider =
-    JsonProvider<
-        Sample="../src/json/Countries.json",
-        SampleIsList=true,
-        RootName="Countries",
-        Encoding="utf-8",
-        EmbeddedResource="RadioBrowser, RadioBrowser.json.Countries.json"
-     >
+    JsonProvider<Sample="../src/json/Countries.json", SampleIsList=true, RootName="Countries", Encoding="utf-8">
 
 type LanguagesProvider =
-    JsonProvider<
-        Sample="../src/json/Languages.json",
-        SampleIsList=true,
-        RootName="Languages",
-        Encoding="utf-8",
-        EmbeddedResource="RadioBrowser, RadioBrowser.json.Languages.json"
-     >
+    JsonProvider<Sample="../src/json/Languages.json", SampleIsList=true, RootName="Languages", Encoding="utf-8">
 
 type NameAndCountProvider =
-    JsonProvider<
-        Sample="../src/json/NameAndCount.json",
-        SampleIsList=true,
-        RootName="NameAndCount",
-        Encoding="utf-8",
-        EmbeddedResource="RadioBrowser, RadioBrowser.json.NameAndCount.json"
-     >
+    JsonProvider<Sample="../src/json/NameAndCount.json", SampleIsList=true, RootName="NameAndCount", Encoding="utf-8">
 
 type GetStationParameters(offset: int, limit: int, hidebroken: bool) =
     member this.Offset = offset
