@@ -671,7 +671,7 @@ let player =
                             }
 
                             div {
-                                style' "height:40px;"
+                                class' "player-tags"
                                 station.Tags
                             }
                         }
