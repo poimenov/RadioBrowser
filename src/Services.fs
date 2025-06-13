@@ -111,18 +111,11 @@ type GetStationParameters(offset: int, limit: int, hidebroken: bool) =
     member this.Hidebroken = hidebroken
 
 type SearchStationParameters
-    (
-        name: string option,
-        nameExact: bool option,
-        countryCode: string option,
-        language: string option,
-        tag: string option,
-        tagExact: bool option
-    ) =
+    (name: string option, nameExact: bool option, countryCode: string option, tag: string option, tagExact: bool option)
+    =
     member this.Name = name
     member this.NameExact = nameExact
     member this.CountryCode = countryCode
-    member this.Language = language
     member this.Tag = tag
     member this.tagExact = tagExact
 
@@ -270,8 +263,6 @@ type StationsService(handler: IHttpHandler, dataAccess: IFavoritesDataAccess, op
               "nameExact", string searchParameters.NameExact.Value
           if searchParameters.CountryCode.IsSome then
               "countrycode", searchParameters.CountryCode.Value
-          if searchParameters.Language.IsSome then
-              "language", searchParameters.Language.Value
           if searchParameters.Tag.IsSome then
               "tag", searchParameters.Tag.Value
           if searchParameters.tagExact.IsSome then
