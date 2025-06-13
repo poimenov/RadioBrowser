@@ -221,8 +221,7 @@ let stationsByCountry (countryCode: string) =
              hook: IComponentHook) ->
             let getStationsByCountryCode (code: string) =
                 async {
-                    let searchParams =
-                        SearchStationParameters(None, None, Some code, None, None, None, None)
+                    let searchParams = SearchStationParameters(None, None, Some code, None, None, None)
 
                     store.SearchMode.Publish(Search searchParams)
                     let parameters = getParameters (0, stationsService.Settings)
@@ -245,15 +244,7 @@ let stationsByCountry (countryCode: string) =
                     let filterStations (name: string) =
                         async {
                             let searchParams =
-                                SearchStationParameters(
-                                    Some name,
-                                    Some false,
-                                    Some countryCode,
-                                    None,
-                                    None,
-                                    None,
-                                    None
-                                )
+                                SearchStationParameters(Some name, Some false, Some countryCode, None, None, None)
 
                             store.SearchMode.Publish(Search searchParams)
                             let parameters = getParameters (0, stationsService.Settings)
@@ -320,8 +311,7 @@ let stationsByTag (tag: string) =
              hook: IComponentHook) ->
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
-                    let searchParams =
-                        SearchStationParameters(None, None, None, None, Some tag, None, None)
+                    let searchParams = SearchStationParameters(None, None, None, None, Some tag, None)
 
                     store.SearchMode.Publish(Search searchParams)
                     let parameters = getParameters (0, stationsService.Settings)

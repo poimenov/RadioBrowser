@@ -117,8 +117,7 @@ type SearchStationParameters
         countryCode: string option,
         language: string option,
         tag: string option,
-        tagExact: bool option,
-        codec: string option
+        tagExact: bool option
     ) =
     member this.Name = name
     member this.NameExact = nameExact
@@ -126,7 +125,6 @@ type SearchStationParameters
     member this.Language = language
     member this.Tag = tag
     member this.tagExact = tagExact
-    member this.Codec = codec
 
 [<CLIMutable>]
 type Station =
@@ -278,8 +276,6 @@ type StationsService(handler: IHttpHandler, dataAccess: IFavoritesDataAccess, op
               "tag", searchParameters.Tag.Value
           if searchParameters.tagExact.IsSome then
               "tagExact", string searchParameters.tagExact.Value
-          if searchParameters.Codec.IsSome then
-              "codec", searchParameters.Codec.Value
           "offset", string parameters.Offset
           "limit", string parameters.Limit
           "order", options.Value.DefaultOrder
