@@ -267,6 +267,10 @@ type StationsService(handler: IHttpHandler, dataAccess: IFavoritesDataAccess, op
               "tag", searchParameters.Tag.Value
           if searchParameters.tagExact.IsSome then
               "tagExact", string searchParameters.tagExact.Value
+          if not (String.IsNullOrWhiteSpace options.Value.Codec) then
+              "codec", options.Value.Codec
+          if not (String.IsNullOrWhiteSpace options.Value.Language) then
+              "language", options.Value.Language
           "offset", string parameters.Offset
           "limit", string parameters.Limit
           "order", options.Value.DefaultOrder

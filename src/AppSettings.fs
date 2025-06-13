@@ -44,3 +44,5 @@ type public AppSettings() =
     member val DefaultOrder = "votes" with get, set
     member val ReverseOrder = true with get, set
     member val CurrentRegion = RegionInfo.CurrentRegion with get
+    member val Codec: string = null with get, set
+    member val Language: string = null with get, set
