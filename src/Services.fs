@@ -155,22 +155,33 @@ type IFavoritesDataAccess =
     abstract member GetFavorites: parameters: GetStationParameters -> Station array
     abstract member Exists: Guid -> bool
     abstract member Add: station: Station -> unit
+    abstract member Update: station: Station -> unit
     abstract member Remove: Guid -> unit
     abstract member IsFavorites: Guid array -> Map<Guid, bool>
+    abstract member FavoritesCount: unit -> int
 
-type FavoritesDataAccess() =
+type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
     let database (connectionString: string) =
         new LiteDB.LiteDatabase(connectionString)
 
     let favorites (db: LiteDB.LiteDatabase) = db.GetCollection<Station>("favorites")
 
     interface IFavoritesDataAccess with
-        member this.Add(station) =
+        member this.Add(station: Station) =
             use db = database AppSettings.DataBasePath
 
             if not (favorites(db).Exists(fun x -> x.Id = station.Id)) then
                 station.IsFavorite <- true
-                favorites(db).Insert(station) |> ignore
+                favorites(db).Insert station |> ignore
+
+        member this.Update(station: Station) : unit =
+            use db = database AppSettings.DataBasePath
+
+            if favorites(db).Exists(fun x -> x.Id = station.Id) then
+                station.IsFavorite <- true
+
+                if not (favorites(db).Update station) then
+                    logger.LogError("Failed to update station {0} with id {1} in favorites.", station.Name, station.Id)
 
         member this.Exists(id: Guid) =
             use db = database AppSettings.DataBasePath
@@ -188,14 +199,20 @@ type FavoritesDataAccess() =
 
         member this.Remove(id: Guid) =
             use db = database AppSettings.DataBasePath
-            favorites(db).Delete(LiteDB.BsonValue(id)) |> ignore
+
+            if not (favorites(db).Delete(LiteDB.BsonValue id)) then
+                logger.LogError("Failed to remove station with id {0} from favorites.", id)
 
         member this.IsFavorites(ids: Guid array) =
             let exists (id: Guid, favorites: LiteDB.ILiteCollection<Station>) = favorites.Exists(fun x -> x.Id = id)
             use db = database AppSettings.DataBasePath
             let favorites = favorites (db)
 
-            ids |> Array.map (fun id -> (id, exists (id, favorites))) |> Map.ofArray
+            ids |> Array.map (fun id -> id, exists (id, favorites)) |> Map.ofArray
+
+        member this.FavoritesCount() : int =
+            use db = database AppSettings.DataBasePath
+            favorites(db).Count()
 
 type IHttpHandler =
     abstract member GetJsonStringAsync: url: string * parameters: list<string * string> -> Async<string>
@@ -243,6 +260,7 @@ type IStationsService =
     abstract member GetStationsByClicks: parameters: GetStationParameters -> Async<Station array>
     abstract member GetStationsByVotes: parameters: GetStationParameters -> Async<Station array>
     abstract member GetFavoriteStations: parameters: GetStationParameters -> Async<Station array>
+    abstract member GetStations: Guid array -> Async<Station array>
 
     abstract member SearchStations:
         searchParameters: SearchStationParameters * parameters: GetStationParameters -> Async<Station array>
@@ -278,7 +296,7 @@ type StationsService(handler: IHttpHandler, dataAccess: IFavoritesDataAccess, op
           "hidebroken", string parameters.Hidebroken ]
 
     let getStations (json: string) =
-        let response = StationsProvider.ParseList(json)
+        let response = StationsProvider.ParseList json
 
         let favorites =
             response |> Array.map (fun x -> x.Stationuuid) |> dataAccess.IsFavorites
@@ -319,7 +337,16 @@ type StationsService(handler: IHttpHandler, dataAccess: IFavoritesDataAccess, op
         member this.Settings: AppSettings = options.Value
 
         member this.GetFavoriteStations(parameters: GetStationParameters) =
-            async { return dataAccess.GetFavorites(parameters) }
+            async { return dataAccess.GetFavorites parameters }
+
+        member this.GetStations(uuids: Guid array) : Async<Station array> =
+            async {
+                let query = [ "uuids", String.Join(",", uuids) ]
+
+                let! jsonString = handler.GetJsonStringAsync($"{stations}/byuuid", query)
+
+                return getStations jsonString
+            }
 
 type IListsService =
     abstract member GetCountries: unit -> Async<CountriesProvider.Country array>

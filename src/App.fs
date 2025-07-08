@@ -2,6 +2,7 @@
 module RadioBrowser.App
 
 open System
+open System.Collections.Generic
 open System.Linq
 open Microsoft.AspNetCore.Components
 open Microsoft.AspNetCore.Components.Web
@@ -194,9 +195,9 @@ let stationsList (store: IShareStore, localizer: IStringLocalizer<SharedResource
                             class' (getSelectedClass station)
 
                             onclick (fun _ ->
-                                let selected = SelectedStation.Selected(station)
-                                store.SelectedStationIsFavorite.Publish(station.IsFavorite)
-                                store.SelectedStation.Publish(selected))
+                                let selected = SelectedStation.Selected station
+                                store.SelectedStationIsFavorite.Publish station.IsFavorite
+                                store.SelectedStation.Publish selected)
 
                             stationItem (station, isFavorite station)
                         }
@@ -910,50 +911,72 @@ let routes =
            routeAny homePage |]
 
 let app =
-    ErrorBoundary'' {
-        ErrorContent(fun e ->
-            FluentLabel'' {
-                Color Color.Error
-                string e
+    html.inject (fun (hook: IComponentHook, stationService: IStationsService, dataAccess: IFavoritesDataAccess) ->
+        hook.AddInitializedTask(fun _ ->
+            task {
+                let update (ids: Guid array) =
+                    async {
+                        let! stations = stationService.GetStations ids
+                        stations |> Array.iter (fun s -> dataAccess.Update s)
+                    }
+
+                let favCount = dataAccess.FavoritesCount()
+                let mutable count = 0
+
+                while count < favCount do
+                    let favs = dataAccess.GetFavorites(getParameters (count, stationService.Settings))
+
+                    update (favs |> Array.map (fun x -> x.Id))
+                    |> Async.Start
+                    |> ignore
+
+                    count <- count + favs.Length
             })
 
-        FluentDesignTheme'' { StorageName "theme" }
+        ErrorBoundary'' {
+            ErrorContent(fun e ->
+                FluentLabel'' {
+                    Color Color.Error
+                    string e
+                })
 
-        FluentLayout'' {
-            appHeader
+            FluentDesignTheme'' { StorageName "theme" }
 
-            FluentStack'' {
-                Width "100%"
-                class' "main"
-                Orientation Orientation.Horizontal
-                navmenus
+            FluentLayout'' {
+                appHeader
 
-                FluentBodyContent'' {
-                    class' "body-content"
-                    style { overflowHidden }
+                FluentStack'' {
+                    Width "100%"
+                    class' "main"
+                    Orientation Orientation.Horizontal
+                    navmenus
 
-                    FluentStack'' {
-                        style' "width:100%;height:100%;"
-                        Orientation Orientation.Vertical
-                        VerticalGap 2
+                    FluentBodyContent'' {
+                        class' "body-content"
+                        style { overflowHidden }
 
-                        div {
-                            class' "content"
+                        FluentStack'' {
+                            style' "width:100%;height:100%;"
+                            Orientation Orientation.Vertical
+                            VerticalGap 2
 
-                            routes
-                        }
+                            div {
+                                class' "content"
 
-                        div {
-                            class' "player-container"
-                            player
+                                routes
+                            }
+
+                            div {
+                                class' "player-container"
+                                player
+                            }
                         }
                     }
                 }
-            }
 
-            appFooter
-        }
-    }
+                appFooter
+            }
+        })
 
 type AppComponent() =
     inherit FunBlazorComponent()
