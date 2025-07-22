@@ -2,7 +2,6 @@
 module RadioBrowser.App
 
 open System
-open System.Collections.Generic
 open System.Linq
 open Microsoft.AspNetCore.Components
 open Microsoft.AspNetCore.Components.Web
@@ -77,7 +76,7 @@ type ElementVisibilityCallback(store: IShareStore, stationsService: IStationsSer
                 | Search ssp -> stationsService.SearchStations(ssp, parameters)
 
             if newStations.Count() > 0 then
-                let stations = store.Stations.Value.Concat(newStations)
+                let stations = store.Stations.Value.Concat newStations
                 store.Stations.Publish stations
         }
 
@@ -89,7 +88,7 @@ let watchElementVisibleComponent =
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     let callback = ElementVisibilityCallback(store, stationsService)
-                    let dotNetRef = DotNetObjectReference.Create(callback)
+                    let dotNetRef = DotNetObjectReference.Create callback
                     jsRuntime.InvokeVoidAsync("observeVisibility", elementId, dotNetRef) |> ignore
                 })
 
@@ -195,7 +194,7 @@ let stationsList (store: IShareStore, localizer: IStringLocalizer<SharedResource
                             class' (getSelectedClass station)
 
                             onclick (fun _ ->
-                                let selected = SelectedStation.Selected station
+                                let selected = Selected station
                                 store.SelectedStationIsFavorite.Publish station.IsFavorite
                                 store.SelectedStation.Publish selected)
 

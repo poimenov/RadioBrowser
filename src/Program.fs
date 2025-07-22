@@ -16,8 +16,8 @@ open RadioBrowser
 [<EntryPoint>]
 let main args =
     let DATA_DIRECTORY = "DATA_DIRECTORY"
-    let builder = PhotinoBlazorAppBuilder.CreateDefault(args)
-    builder.RootComponents.Add<AppComponent>("#app")
+    let builder = PhotinoBlazorAppBuilder.CreateDefault args
+    builder.RootComponents.Add<AppComponent> "#app"
 
     let configuration =
         ConfigurationBuilder()
@@ -34,8 +34,8 @@ let main args =
     builder.Services.AddLocalization(fun options -> options.ResourcesPath <- "Resources")
     |> ignore
 
-    builder.Services.AddSingleton<IConfiguration>(configuration) |> ignore
-    builder.Services.Configure<AppSettings>(configuration) |> ignore
+    builder.Services.AddSingleton<IConfiguration> configuration |> ignore
+    builder.Services.Configure<AppSettings> configuration |> ignore
     builder.Services.AddSingleton<IPlatformService, PlatformService>() |> ignore
     builder.Services.AddSingleton<IProcessService, ProcessService>() |> ignore
 
@@ -56,16 +56,16 @@ let main args =
     FileInfo AppSettings.LogConfigPath |> XmlConfigurator.Configure |> ignore
 
     let logger = application.Services.GetRequiredService<ILogger<_>>()
-    logger.LogInformation("Starting application")
+    logger.LogInformation "Starting application"
     let settings = application.Services.GetRequiredService<IOptions<AppSettings>>()
-    CultureInfo.DefaultThreadCurrentCulture <- CultureInfo.GetCultureInfo(settings.Value.CultureName)
-    CultureInfo.DefaultThreadCurrentUICulture <- CultureInfo.GetCultureInfo(settings.Value.CultureName)
+    CultureInfo.DefaultThreadCurrentCulture <- CultureInfo.GetCultureInfo settings.Value.CultureName
+    CultureInfo.DefaultThreadCurrentUICulture <- CultureInfo.GetCultureInfo settings.Value.CultureName
 
     // customize window
     application.MainWindow
         .SetSize(settings.Value.WindowWidth, settings.Value.WindowHeight)
         .SetIconFile(Path.Combine(AppSettings.WwwRootFolderName, AppSettings.FavIconFileName))
-        .SetTitle(AppSettings.ApplicationName)
+        .SetTitle AppSettings.ApplicationName
     |> ignore
 
     AppDomain.CurrentDomain.UnhandledException.Add(fun e ->

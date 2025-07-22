@@ -22,11 +22,11 @@ type IPlatformService =
 type PlatformService() =
     interface IPlatformService with
         member this.GetPlatform() =
-            if RuntimeInformation.IsOSPlatform(OSPlatform.Windows) then
+            if RuntimeInformation.IsOSPlatform OSPlatform.Windows then
                 Windows
-            elif RuntimeInformation.IsOSPlatform(OSPlatform.Linux) then
+            elif RuntimeInformation.IsOSPlatform OSPlatform.Linux then
                 Linux
-            elif RuntimeInformation.IsOSPlatform(OSPlatform.OSX) then
+            elif RuntimeInformation.IsOSPlatform OSPlatform.OSX then
                 MacOS
             else
                 Unknown
@@ -82,9 +82,9 @@ type ApiUrlProvider(logger: ILogger<ApiUrlProvider>) =
                         searchUrl <- ipAddress.ToString()
 
                 // Get clean name
-                let hostEntry = Dns.GetHostEntry(searchUrl)
+                let hostEntry = Dns.GetHostEntry searchUrl
 
-                if not (String.IsNullOrEmpty(hostEntry.HostName)) then
+                if not (String.IsNullOrEmpty hostEntry.HostName) then
                     searchUrl <- hostEntry.HostName
 
                 searchUrl
@@ -164,7 +164,7 @@ type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
     let database (connectionString: string) =
         new LiteDB.LiteDatabase(connectionString)
 
-    let favorites (db: LiteDB.LiteDatabase) = db.GetCollection<Station>("favorites")
+    let favorites (db: LiteDB.LiteDatabase) = db.GetCollection<Station> "favorites"
 
     interface IFavoritesDataAccess with
         member this.Add(station: Station) =
@@ -307,7 +307,7 @@ type StationsService(handler: IHttpHandler, dataAccess: IFavoritesDataAccess, op
             | false -> false
 
         response
-        |> Array.map (fun x -> StationMapper.toStation (x, (isFavorite x.Stationuuid)))
+        |> Array.map (fun x -> StationMapper.toStation (x, isFavorite x.Stationuuid))
 
     interface IStationsService with
         member this.GetStationsByClicks(parameters) =
@@ -376,18 +376,18 @@ type ListsService(handler: IHttpHandler) =
                       "hidebroken", "true" ]
 
                 let! jsonString = handler.GetJsonStringAsync("tags", parameters)
-                return NameAndCountProvider.ParseList(jsonString)
+                return NameAndCountProvider.ParseList jsonString
             }
 
         member this.GetCountries() =
             async {
                 let! jsonString = handler.GetJsonStringAsync("countries", [])
-                return CountriesProvider.ParseList(jsonString)
+                return CountriesProvider.ParseList jsonString
             }
 
         member this.GetLanguages() =
             async {
                 let! jsonString = handler.GetJsonStringAsync("languages", [])
-                return LanguagesProvider.ParseList(jsonString)
+                return LanguagesProvider.ParseList jsonString
 
             }
