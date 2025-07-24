@@ -2,10 +2,12 @@
 module RadioBrowser.AppSettings
 
 open System
+open System.Globalization
 open System.IO
 open System.Reflection
+open System.Text.Json
+open System.Text.Json.Serialization
 open Microsoft.FluentUI.AspNetCore.Components
-open System.Globalization
 
 type public AppSettings() =
     static member ApplicationName = "RadioBrowser"
@@ -43,6 +45,20 @@ type public AppSettings() =
     //bitrate, lastcheckok, lastchecktime, clicktimestamp, clickcount, clicktrend, changetimestamp, random
     member val DefaultOrder = "votes" with get, set
     member val ReverseOrder = true with get, set
+
+    [<JsonIgnore>]
     member val CurrentRegion = RegionInfo.CurrentRegion with get
+
+    // The prefer codec used for the audio stream, e.g., "mp3", "aac", etc. (https://fi1.api.radio-browser.info/json/codecs)
     member val Codec: string = null with get, set
+    // The prefer language of the audio stream, e.g., "german,english", etc. (https://fi1.api.radio-browser.info/json/languages)
     member val Language: string = null with get, set
+
+    member this.Save() =
+        let filePath =
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppSettings.AppConfigFileName)
+
+        if File.Exists filePath then
+            let options = JsonSerializerOptions(WriteIndented = true)
+            let jsonString = JsonSerializer.Serialize(this, options)
+            File.WriteAllText(filePath, jsonString)

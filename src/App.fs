@@ -61,7 +61,20 @@ type IShareStore with
 let getParameters (offset: int, settings: AppSettings) =
     GetStationParameters(offset, settings.LimitCount, settings.HideBroken)
 
-type ElementVisibilityCallback(store: IShareStore, stationsService: IStationsService) =
+type AppCallbacks(store: IShareStore, stationsService: IStationsService, window: Photino.NET.PhotinoWindow) =
+    [<JSInvokable>]
+    member _.OnWindowResize(width: int, height: int) =
+        task {
+            if width < 800 then
+                store.IsMenuOpen.Publish false
+
+            let w = if width < 600 then 600 else width
+            let h = if height < 400 then 400 else height
+
+            if width < 700 || height < 500 then
+                window.SetSize(w, h) |> ignore
+        }
+
     [<JSInvokable>]
     member _.OnElementVisible() =
         task {
@@ -82,14 +95,19 @@ type ElementVisibilityCallback(store: IShareStore, stationsService: IStationsSer
 
 let watchElementVisibleComponent =
     html.inject
-        (fun (store: IShareStore, jsRuntime: IJSRuntime, hook: IComponentHook, stationsService: IStationsService) ->
+        (fun
+            (store: IShareStore,
+             jsRuntime: IJSRuntime,
+             hook: IComponentHook,
+             stationsService: IStationsService,
+             window: Photino.NET.PhotinoWindow) ->
             let elementId = "watched-div"
 
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
-                    let callback = ElementVisibilityCallback(store, stationsService)
+                    let callback = AppCallbacks(store, stationsService, window)
                     let dotNetRef = DotNetObjectReference.Create callback
-                    jsRuntime.InvokeVoidAsync("observeVisibility", elementId, dotNetRef) |> ignore
+                    jsRuntime.InvokeVoidAsync("setCallbacks", elementId, dotNetRef) |> ignore
                 })
 
             div { id elementId })
@@ -795,7 +813,7 @@ let appHeader =
 
                             OnLoaded(fun args ->
                                 if args.IsDark then
-                                    store.Theme.Publish(DesignThemeModes.Dark))
+                                    store.Theme.Publish DesignThemeModes.Dark)
                         }
 
                         FluentButton'' {

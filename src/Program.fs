@@ -63,9 +63,18 @@ let main args =
 
     // customize window
     application.MainWindow
+        .RegisterSizeChangedHandler(
+            EventHandler<Drawing.Size>(fun _ args ->
+                let settings = application.Services.GetRequiredService<IOptions<AppSettings>>()
+                settings.Value.WindowWidth <- args.Width 
+                settings.Value.WindowHeight <- args.Height
+                settings.Value.Save())
+
+        )
         .SetSize(settings.Value.WindowWidth, settings.Value.WindowHeight)
         .SetIconFile(Path.Combine(AppSettings.WwwRootFolderName, AppSettings.FavIconFileName))
-        .SetTitle AppSettings.ApplicationName
+        .SetTitle
+        AppSettings.ApplicationName
     |> ignore
 
     AppDomain.CurrentDomain.UnhandledException.Add(fun e ->
