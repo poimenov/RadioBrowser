@@ -910,72 +910,87 @@ let routes =
            routeAny homePage |]
 
 let app =
-    html.inject (fun (hook: IComponentHook, stationService: IStationsService, dataAccess: IFavoritesDataAccess) ->
-        hook.AddInitializedTask(fun _ ->
-            task {
-                let update (ids: Guid array) =
-                    async {
-                        let! stations = stationService.GetStations ids
-                        stations |> Array.iter (fun s -> dataAccess.Update s)
-                    }
+    html.inject
+        (fun
+            (hook: IComponentHook,
+             store: IShareStore,
+             stationService: IStationsService,
+             dataAccess: IFavoritesDataAccess) ->
+            hook.AddInitializedTask(fun _ ->
+                task {
+                    let update (ids: Guid array) =
+                        async {
+                            let! stations = stationService.GetStations ids
+                            stations |> Array.iter (fun s -> dataAccess.Update s)
+                        }
 
-                let favCount = dataAccess.FavoritesCount()
-                let mutable count = 0
+                    let favCount = dataAccess.FavoritesCount()
+                    let mutable count = 0
 
-                while count < favCount do
-                    let favs = dataAccess.GetFavorites(getParameters (count, stationService.Settings))
+                    while count < favCount do
+                        let favs = dataAccess.GetFavorites(getParameters (count, stationService.Settings))
 
-                    update (favs |> Array.map (fun x -> x.Id))
-                    |> Async.Start
-                    |> ignore
+                        update (favs |> Array.map (fun x -> x.Id)) |> Async.Start |> ignore
 
-                    count <- count + favs.Length
-            })
-
-        ErrorBoundary'' {
-            ErrorContent(fun e ->
-                FluentLabel'' {
-                    Color Color.Error
-                    string e
+                        count <- count + favs.Length
                 })
 
-            FluentDesignTheme'' { StorageName "theme" }
+            ErrorBoundary'' {
+                ErrorContent(fun e ->
+                    FluentLabel'' {
+                        Color Color.Error
+                        string e
+                    })
 
-            FluentLayout'' {
-                appHeader
+                FluentDesignTheme'' { StorageName "theme" }
 
-                FluentStack'' {
-                    Width "100%"
-                    class' "main"
-                    Orientation Orientation.Horizontal
-                    navmenus
+                FluentLayout'' {
+                    appHeader
 
-                    FluentBodyContent'' {
-                        class' "body-content"
-                        style { overflowHidden }
+                    FluentStack'' {
+                        Width "100%"
+                        class' "main"
+                        Orientation Orientation.Horizontal
+                        navmenus
 
-                        FluentStack'' {
-                            style' "width:100%;height:100%;"
-                            Orientation Orientation.Vertical
-                            VerticalGap 2
+                        FluentBodyContent'' {
+                            class' "body-content"
+                            style { overflowHidden }
 
-                            div {
-                                class' "content"
+                            FluentStack'' {
+                                style' "width:100%;height:100%;"
+                                Orientation Orientation.Vertical
+                                VerticalGap 2
 
-                                routes
-                            }
+                                adapt {
+                                    let! selectedStation = store.SelectedStation
 
-                            div {
-                                class' "player-container"
-                                player
+                                    let styleHeight =
+                                        if selectedStation = NotSelected then
+                                            "height: 100%;"
+                                        else
+                                            "height: calc(100% - 74px);"
+
+                                    div {
+                                        class' "content"
+                                        style' styleHeight
+
+                                        routes
+                                    }
+
+                                    if selectedStation <> NotSelected then
+                                        div {
+                                            class' "player-container"
+                                            player
+                                        }
+                                }
                             }
                         }
                     }
-                }
 
-                appFooter
-            }
-        })
+                    appFooter
+                }
+            })
 
 type AppComponent() =
     inherit FunBlazorComponent()
