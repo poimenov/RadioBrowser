@@ -23,8 +23,25 @@
     </data>    
     <data name="ByClicks" xml:space="preserve">
         <value>By Clicks</value>
+    </data>         
+    <data name="StationsByCountry" xml:space="preserve">
+        <value>Stations by Country</value>
     </data>    
-    
+    <data name="StationsByTag" xml:space="preserve">
+        <value>Stations by Tag</value>
+    </data>     
+    <data name="StationsByVotes" xml:space="preserve">
+        <value>Stations by Votes</value>
+    </data>    
+    <data name="StationsByClicks" xml:space="preserve">
+        <value>Stations by Clicks</value>
+    </data>     
+    <data name="Countries" xml:space="preserve">
+        <value>Select the country</value>
+    </data>
+    <data name="Tags" xml:space="preserve">
+        <value>Select the tag</value>
+    </data>
     <data name="NoStationSelected" xml:space="preserve">
         <value>No Station Selected</value>
     </data>     

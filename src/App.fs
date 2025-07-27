@@ -2,6 +2,7 @@
 module RadioBrowser.App
 
 open System
+open System.Globalization
 open System.Linq
 open Microsoft.AspNetCore.Components
 open Microsoft.AspNetCore.Components.Web
@@ -57,6 +58,8 @@ type IShareStore with
     member store.Volume = store.CreateCVal(nameof store.Volume, 0.5)
 
     member store.SearchMode = store.CreateCVal(nameof store.SearchMode, ByVotes)
+
+    member store.HeaderTitle = store.CreateCVal(nameof store.HeaderTitle, "")
 
 let getParameters (offset: int, settings: AppSettings) =
     GetStationParameters(offset, settings.LimitCount, settings.HideBroken)
@@ -240,7 +243,6 @@ let stationsByCountry (countryCode: string) =
             let getStationsByCountryCode (code: string) =
                 async {
                     let searchParams = SearchStationParameters(None, None, Some code, None, None)
-
                     store.SearchMode.Publish(Search searchParams)
                     let parameters = getParameters (0, stationsService.Settings)
                     return! stationsService.SearchStations(searchParams, parameters)
@@ -248,8 +250,10 @@ let stationsByCountry (countryCode: string) =
 
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
-                    let! stations = getStationsByCountryCode (countryCode)
+                    let! stations = getStationsByCountryCode countryCode
                     store.Stations.Publish stations
+                    let regionInfo = RegionInfo countryCode
+                    store.HeaderTitle.Publish $"""{localizer["StationsByCountry"]}: {regionInfo.EnglishName}"""
                 })
 
             fragment {
@@ -330,8 +334,8 @@ let stationsByTag (tag: string) =
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     let searchParams = SearchStationParameters(None, None, None, Some tag, Some true)
-
                     store.SearchMode.Publish(Search searchParams)
+                    store.HeaderTitle.Publish $"""{localizer["StationsByTag"]}: {tag}"""
                     let parameters = getParameters (0, stationsService.Settings)
                     let! stations = stationsService.SearchStations(searchParams, parameters)
                     store.Stations.Publish stations
@@ -354,6 +358,8 @@ let countriesPage =
              hook: IComponentHook) ->
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
+                    store.HeaderTitle.Publish localizer["Countries"]
+
                     if not (store.Countries.Value.Any()) then
                         let! countries = listsService.GetCountries()
                         store.Countries.Publish countries
@@ -434,6 +440,8 @@ let tagsPage =
              hook: IComponentHook) ->
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
+                    store.HeaderTitle.Publish localizer["Tags"]
+
                     if not (store.Tags.Value.Any()) then
                         let! tags = listsService.GetTags()
                         store.Tags.Publish tags
@@ -556,6 +564,7 @@ let favoriteStations =
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     store.SearchMode.Publish Favorites
+                    store.HeaderTitle.Publish localizer["Favorites"]
                     let parameters = getParameters (0, stationsService.Settings)
                     let! stations = stationsService.GetFavoriteStations parameters
                     store.Stations.Publish stations
@@ -573,6 +582,7 @@ let stationsByVotes =
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     store.SearchMode.Publish ByVotes
+                    store.HeaderTitle.Publish localizer["StationsByVotes"]
                     let parameters = getParameters (0, stationsService.Settings)
                     let! stations = stationsService.GetStationsByVotes parameters
                     store.Stations.Publish stations
@@ -590,6 +600,7 @@ let stationsByClicks =
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     store.SearchMode.Publish ByClicks
+                    store.HeaderTitle.Publish localizer["StationsByClicks"]
                     let parameters = getParameters (0, stationsService.Settings)
                     let! stations = stationsService.GetStationsByClicks parameters
                     store.Stations.Publish stations
@@ -932,6 +943,7 @@ let app =
         (fun
             (hook: IComponentHook,
              store: IShareStore,
+             options: IOptions<AppSettings>,
              stationService: IStationsService,
              dataAccess: IFavoritesDataAccess) ->
             hook.AddInitializedTask(fun _ ->
@@ -982,12 +994,48 @@ let app =
 
                                 adapt {
                                     let! selectedStation = store.SelectedStation
+                                    let! searchMode = store.SearchMode
+                                    let! headerTitle = store.HeaderTitle
+
+                                    let icon: Icon =
+                                        match searchMode with
+                                        | Search parameters ->
+                                            if parameters.CountryCode.IsSome then
+                                                if
+                                                    parameters.CountryCode.Value = options.Value.CurrentRegion.TwoLetterISORegionName
+                                                then
+                                                    Icons.Regular.Size24.Home()
+                                                else
+                                                    Icons.Regular.Size24.Flag()
+                                            else if parameters.Tag.IsSome then
+                                                Icons.Regular.Size24.Tag()
+                                            else
+                                                Icons.Regular.Size24.Search()
+                                        | Favorites -> Icons.Regular.Size32.Heart()
+                                        | ByVotes -> Icons.Regular.Size24.Vote()
+                                        | ByClicks -> Icons.Regular.Size24.CursorClick()
+
+
+                                    FluentStack'' {
+                                        Orientation Orientation.Horizontal
+                                        VerticalAlignment VerticalAlignment.Center
+                                        HorizontalAlignment HorizontalAlignment.Center
+                                        HorizontalGap 4
+                                        style' "height: 30px;"
+
+                                        FluentIcon'' { Value icon }
+
+                                        span {
+                                            style' "font-size: 24px; font-weight: bold;"
+                                            headerTitle
+                                        }
+                                    }
 
                                     let styleHeight =
                                         if selectedStation = NotSelected then
-                                            "height: 100%;"
+                                            "height: calc(100% - 30px);"
                                         else
-                                            "height: calc(100% - 74px);"
+                                            "height: calc(100% - 104px);"
 
                                     div {
                                         class' "content"
