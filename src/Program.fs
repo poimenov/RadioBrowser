@@ -22,7 +22,11 @@ let main args =
     let configuration =
         ConfigurationBuilder()
             .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
-            .AddJsonFile(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppSettings.AppConfigFileName), true, true)
+            .AddJsonFile(
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppSettings.AppConfigFileName),
+                true,
+                false
+            )
             .Build()
 
     builder.Services.AddFunBlazorWasm() |> ignore
@@ -66,7 +70,7 @@ let main args =
         .RegisterSizeChangedHandler(
             EventHandler<Drawing.Size>(fun _ args ->
                 let settings = application.Services.GetRequiredService<IOptions<AppSettings>>()
-                settings.Value.WindowWidth <- args.Width 
+                settings.Value.WindowWidth <- args.Width
                 settings.Value.WindowHeight <- args.Height
                 settings.Value.Save())
 
