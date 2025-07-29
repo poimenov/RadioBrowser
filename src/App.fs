@@ -2,6 +2,7 @@
 module RadioBrowser.App
 
 open System
+open System.Collections.Generic
 open System.Globalization
 open System.Linq
 open Microsoft.AspNetCore.Components
@@ -966,14 +967,18 @@ let app =
                         }
 
                     let favCount = dataAccess.FavoritesCount()
+                    let favArrs = new List<Station array>()
                     let mutable count = 0
 
                     while count < favCount do
                         let favs = dataAccess.GetFavorites(getParameters (count, stationService.Settings))
-
-                        update (favs |> Array.map (fun x -> x.Id)) |> Async.Start |> ignore
-
+                        favArrs.Add favs
                         count <- count + favs.Length
+
+                    favArrs
+                    |> Seq.toList
+                    |> List.map (fun arr -> update (arr |> Array.map (fun x -> x.Id)))
+                    |> fun upd -> Async.Parallel(upd, 5) |> Async.Ignore |> Async.Start
                 })
 
             ErrorBoundary'' {
