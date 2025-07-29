@@ -963,7 +963,7 @@ let app =
                     let update (ids: Guid array) =
                         async {
                             let! stations = stationService.GetStations ids
-                            stations |> Array.iter (fun s -> dataAccess.Update s)
+                            stations |> dataAccess.Update |> ignore
                         }
 
                     let favCount = dataAccess.FavoritesCount()

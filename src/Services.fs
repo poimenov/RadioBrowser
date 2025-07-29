@@ -2,10 +2,11 @@
 module RadioBrowser.Services
 
 open System
+open System.Diagnostics
 open System.Net
 open System.Net.NetworkInformation
-open System.Diagnostics
 open System.Runtime.InteropServices
+open System.Threading.Tasks
 open Microsoft.Extensions.Logging
 open Microsoft.Extensions.Options
 open FSharp.Data
@@ -155,7 +156,7 @@ type IFavoritesDataAccess =
     abstract member GetFavorites: parameters: GetStationParameters -> Station array
     abstract member Exists: Guid -> bool
     abstract member Add: station: Station -> unit
-    abstract member Update: station: Station -> unit
+    abstract member Update: stations: Station array -> Task<unit>
     abstract member Remove: Guid -> unit
     abstract member IsFavorites: Guid array -> Map<Guid, bool>
     abstract member FavoritesCount: unit -> int
@@ -174,14 +175,25 @@ type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
                 station.IsFavorite <- true
                 favorites(db).Insert station |> ignore
 
-        member this.Update(station: Station) : unit =
-            use db = database AppSettings.DataBasePath
 
-            if favorites(db).Exists(fun x -> x.Id = station.Id) then
-                station.IsFavorite <- true
+        member this.Update(stations: Station array) : Task<unit> =
+            async {
+                use db = database AppSettings.DataBasePath
 
-                if not (favorites(db).Update station) then
-                    logger.LogError("Failed to update station {0} with id {1} in favorites.", station.Name, station.Id)
+                stations
+                |> Array.iter (fun station ->
+                    if favorites(db).Exists(fun x -> x.Id = station.Id) then
+                        station.IsFavorite <- true
+
+                        if not (favorites(db).Update station) then
+                            logger.LogError(
+                                "Failed to update station {0} with id {1} in favorites.",
+                                station.Name,
+                                station.Id
+                            ))
+            }
+            |> Async.StartAsTask
+
 
         member this.Exists(id: Guid) =
             use db = database AppSettings.DataBasePath
