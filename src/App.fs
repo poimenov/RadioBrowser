@@ -693,17 +693,18 @@ let player =
                             div {
                                 class' "player-tags"
 
-                                station.Tags.Split ","
-                                |> Array.mapi (fun i tag ->
-                                    fragment {
-                                        if i > 0 then
-                                            ", "
+                                if not (String.IsNullOrWhiteSpace station.Tags) then
+                                    station.Tags.Split ","
+                                    |> Array.mapi (fun i tag ->
+                                        fragment {
+                                            if i > 0 then
+                                                ", "
 
-                                        a {
-                                            href $"/stationsByTag/{tag}"
-                                            tag
-                                        }
-                                    })
+                                            a {
+                                                href $"/stationsByTag/{tag}"
+                                                tag
+                                            }
+                                        })
                             }
                         }
 
