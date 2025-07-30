@@ -77,5 +77,8 @@
     </data>         
     <data name="StationNamePlaceholder" xml:space="preserve">
         <value>Station Name (min 3 chars)</value>
-    </data>             
+    </data> 
+    <data name="ErrorLoadingStation" xml:space="preserve">
+        <value>Error loading station</value>
+    </data>
 </root>

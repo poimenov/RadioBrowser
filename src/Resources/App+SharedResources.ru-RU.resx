@@ -77,5 +77,8 @@
     </data>         
     <data name="StationNamePlaceholder" xml:space="preserve">
         <value>Название Станции (мин 3 символа)</value>
-    </data>       
+    </data>   
+    <data name="ErrorLoadingStation" xml:space="preserve">
+        <value>Ошибка загрузки станции</value>
+    </data>    
 </root>

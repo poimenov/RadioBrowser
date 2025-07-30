@@ -8,7 +8,9 @@ open System.Net.NetworkInformation
 open System.Runtime.InteropServices
 open System.Threading.Tasks
 open Microsoft.Extensions.Logging
+open Microsoft.Extensions.Localization
 open Microsoft.Extensions.Options
+open Microsoft.FluentUI.AspNetCore.Components
 open FSharp.Data
 
 type Platform =
@@ -403,3 +405,20 @@ type ListsService(handler: IHttpHandler) =
                 return LanguagesProvider.ParseList jsonString
 
             }
+
+
+type IServices =
+    abstract member ToastService: IToastService
+    abstract member DataAccess: IFavoritesDataAccess
+    abstract member LinkOpeningService: ILinkOpeningService
+
+type Services
+    (
+        toastService: IToastService,
+        dataAccess: IFavoritesDataAccess,
+        linkOpeningService: ILinkOpeningService
+    ) =
+    interface IServices with
+        member this.ToastService = toastService
+        member this.DataAccess: IFavoritesDataAccess = dataAccess
+        member this.LinkOpeningService: ILinkOpeningService = linkOpeningService

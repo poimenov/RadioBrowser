@@ -614,9 +614,8 @@ let player =
         (fun
             (store: IShareStore,
              jsRuntime: IJSRuntime,
-             dataAccess: IFavoritesDataAccess,
              localizer: IStringLocalizer<SharedResources>,
-             los: ILinkOpeningService) ->
+             services: IServices) ->
             adapt {
                 let! selectedStation = store.SelectedStation
                 let! isPlaying, setIsPlaying = cval(false).WithSetter()
@@ -660,7 +659,7 @@ let player =
                                         title' station.Name
                                         Appearance Appearance.Hypertext
                                         href "#"
-                                        OnClick(fun _ -> los.OpenUrl station.Homepage)
+                                        OnClick(fun _ -> services.LinkOpeningService.OpenUrl station.Homepage)
 
                                         station.Name
                                     }
@@ -722,11 +721,11 @@ let player =
                             )
 
                             OnClick(fun _ ->
-                                if dataAccess.Exists station.Id then
-                                    dataAccess.Remove station.Id
+                                if services.DataAccess.Exists station.Id then
+                                    services.DataAccess.Remove station.Id
                                     station.IsFavorite <- false
                                 else
-                                    dataAccess.Add station
+                                    services.DataAccess.Add station
                                     station.IsFavorite <- true
 
                                 store.SelectedStationIsFavorite.Publish station.IsFavorite)
@@ -791,6 +790,22 @@ let player =
                         style' "display:none;"
                         controls
                         src station.UrlResolved
+
+                        onstalled (fun _ ->
+                            task {
+                                let msg = string (localizer["ErrorLoadingStation"])
+                                let errorMessage = $"{msg}: {station.Name} ({station.UrlResolved})"
+
+                                services.ToastService.ShowError errorMessage |> ignore
+                            })
+
+                        onerror (fun _ ->
+                            task {
+                                let msg = string (localizer["ErrorLoadingStation"])
+                                let errorMessage = $"{msg}: {station.Name} ({station.UrlResolved})"
+
+                                services.ToastService.ShowError errorMessage |> ignore
+                            })
                     }
             })
 
@@ -990,6 +1005,7 @@ let app =
                     })
 
                 FluentDesignTheme'' { StorageName "theme" }
+                FluentToastProvider'' { MaxToastCount 3 }
 
                 FluentLayout'' {
                     appHeader

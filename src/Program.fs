@@ -50,6 +50,7 @@ let main args =
     builder.Services.AddScoped<IHttpHandler, HttpHandler>() |> ignore
     builder.Services.AddScoped<IStationsService, StationsService>() |> ignore
     builder.Services.AddScoped<IListsService, ListsService>() |> ignore
+    builder.Services.AddScoped<IServices, Services>() |> ignore
 
     builder.Services.AddScoped<IFavoritesDataAccess, FavoritesDataAccess>()
     |> ignore
