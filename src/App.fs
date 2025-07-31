@@ -873,7 +873,7 @@ let appHeader =
             })
 
 let appFooter =
-    html.inject (fun (los: ILinkOpeningService) ->
+    html.inject (fun (los: ILinkOpeningService, localizer: IStringLocalizer<SharedResources>) ->
         FluentFooter'' {
             FluentAnchor'' {
                 Appearance Appearance.Hypertext
@@ -883,7 +883,11 @@ let appFooter =
                 "Fun.Blazor"
             }
 
-            FluentSpacer''
+            div {
+                id "status-bar"
+                style' "flex-grow: 1;padding-left: 10px;"
+                data (string (localizer["NowPlaying"]))
+            }
 
             FluentAnchor'' {
                 Appearance Appearance.Hypertext
