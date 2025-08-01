@@ -82,6 +82,6 @@
         <value>Error loading station</value>
     </data>
     <data name="NowPlaying" xml:space="preserve">
-        <value>Now playing: "</value>
+        <value>Now playing: </value>
     </data>    
 </root>
