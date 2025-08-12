@@ -69,8 +69,7 @@ type AppCallbacks(store: IShareStore, stationsService: IStationsService, window:
     [<JSInvokable>]
     member _.OnWindowResize(width: int, height: int) =
         task {
-            if width < 800 then
-                store.IsMenuOpen.Publish false
+            store.IsMenuOpen.Publish (width > 800)
 
             let w = if width < 600 then 600 else width
             let h = if height < 400 then 400 else height

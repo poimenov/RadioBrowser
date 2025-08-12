@@ -20,6 +20,8 @@ function updateTrack(e) {
     }   
 }
 
+let resizeTimeout; 
+
 window.setCallbacks = (elementId, dotNetRef) => {
     const observer = new IntersectionObserver((entries, observer) => {
         entries.forEach(entry => {
@@ -34,9 +36,13 @@ window.setCallbacks = (elementId, dotNetRef) => {
         observer.observe(target);
     }
 
-    window.addEventListener('resize', function() {
-        dotNetRef.invokeMethodAsync('OnWindowResize', window.innerWidth, window.innerHeight);
-    }); 
+    
+    window.addEventListener("resize", () => {
+        clearTimeout(resizeTimeout); 
+        resizeTimeout = setTimeout(() => {
+            dotNetRef.invokeMethodAsync('OnWindowResize', window.innerWidth, window.innerHeight);
+        }, 500);
+    });    
     
     var player = document.getElementById("player");          
     if(player.audioTracks) {
