@@ -396,8 +396,3 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
-
-# prog json files
-favorites.json
-countries.json
-tags.json
