@@ -5,7 +5,8 @@ Build script for RadioBrowser project (https://github.com/poimenov/RadioBrowser)
 .DESCRIPTION
 This script performs:
 1. Clean solution
-2. Create source code archive
+2. Get application version
+3. Create source code archive
 4. Publish for specified platforms
 5. Final report
 
@@ -25,7 +26,6 @@ $ErrorActionPreference = "Stop"
 # Project configuration
 $projectName = "RadioBrowser"
 $projectPath = "./src/RadioBrowser.fsproj"
-$dateString = Get-Date -Format "yyyy-MM-dd"
 $artifactsDir = "./artifacts"
 $publishDir = "$artifactsDir/publish"
 
@@ -40,9 +40,18 @@ if (Test-Path $artifactsDir) {
 New-Item -ItemType Directory -Path $artifactsDir -Force | Out-Null
 New-Item -ItemType Directory -Path $publishDir -Force | Out-Null
 
-# 2. Create source code archive
+# 2. Get application version
+Write-Host "`nGetting application version..." -ForegroundColor Cyan
+$version = dotnet minver --output version
+if (-not $version) {
+    $version = "1.0.0" # Fallback version
+}
+
+Write-Host "Detected version: $version" -ForegroundColor Green
+
+# 3. Create source code archive
 Write-Host "`nCreating source code archive..." -ForegroundColor Magenta
-$sourceArchivePath = "$artifactsDir/$projectName-src-$dateString.zip"
+$sourceArchivePath = "$artifactsDir/$projectName-src-$version.zip"
 
 # Create archive
 Compress-Archive -Path ./ -DestinationPath $sourceArchivePath -CompressionLevel Optimal -Force
@@ -54,7 +63,7 @@ foreach ($rid in $RuntimeIdentifiers) {
 
     $sc = "self-contained"
     $platformPublishDir = "$publishDir\$rid"
-    $archiveName = "$projectName-$rid-$dateString.zip"
+    $archiveName = "$projectName-$rid-$version.zip"
     $archivePath = "$artifactsDir/$archiveName"
 
     # Publish project
@@ -70,7 +79,7 @@ foreach ($rid in $RuntimeIdentifiers) {
     Write-Host "Cleaning publishing folder..." -ForegroundColor Cyan
     Remove-Item  $platformPublishDir -Recurse -Force
 
-    $archiveName = "$projectName-$sc-$rid-$dateString.zip"
+    $archiveName = "$projectName-$sc-$rid-$version.zip"
     $archivePath = "$artifactsDir/$archiveName"
 
     # Publish self-contained project
