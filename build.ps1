@@ -51,20 +51,37 @@ Write-Host "Source archive created: $sourceArchivePath" -ForegroundColor Green
 # 4. Build and publish for each platform
 foreach ($rid in $RuntimeIdentifiers) {
     Write-Host "`nProcessing platform: $rid" -ForegroundColor Yellow
-    
+
+    $sc = "self-contained"
     $platformPublishDir = "$publishDir\$rid"
     $archiveName = "$projectName-$rid-$dateString.zip"
-    $archivePath = "$artifactsDir/$archiveName"    
-    
+    $archivePath = "$artifactsDir/$archiveName"
+
     # Publish project
     Write-Host "Publishing for $rid..." -ForegroundColor Cyan
-    dotnet publish $projectPath -c Release -r $rid -o $platformPublishDir --sc `
-        /p:DebugType=None /p:DebugSymbols=false 
-    
+    dotnet publish $projectPath -c Release -r $rid -o $platformPublishDir `
+        /p:DebugType=None /p:DebugSymbols=false
+
     # Archive results
     Write-Host "Creating archive for $rid..." -ForegroundColor Cyan
     Compress-Archive -Path "$platformPublishDir/*" -DestinationPath $archivePath -CompressionLevel Optimal
-    
+
+    # Clean Publishing folder
+    Write-Host "Cleaning publishing folder..." -ForegroundColor Cyan
+    Remove-Item  $platformPublishDir -Recurse -Force
+
+    $archiveName = "$projectName-$sc-$rid-$dateString.zip"
+    $archivePath = "$artifactsDir/$archiveName"
+
+    # Publish self-contained project
+    Write-Host "Publishing for $sc $rid..." -ForegroundColor Cyan
+    dotnet publish $projectPath -c Release -r $rid -o $platformPublishDir --sc `
+        /p:DebugType=None /p:DebugSymbols=false
+
+    # Archive results
+    Write-Host "Creating archive for $sc $rid..." -ForegroundColor Cyan
+    Compress-Archive -Path "$platformPublishDir/*" -DestinationPath $archivePath -CompressionLevel Optimal
+
     Write-Host "Platform $rid completed. Archive: $archivePath" -ForegroundColor Green
 }
 
