@@ -15,8 +15,7 @@ open Microsoft.JSInterop
 open Fun.Blazor
 open Fun.Blazor.Router
 open FSharp.Data.Adaptive
-
-type SharedResources() = class end
+open System.Threading.Tasks
 
 type Github() =
     inherit
@@ -61,6 +60,9 @@ type IShareStore with
     member store.SearchMode = store.CreateCVal(nameof store.SearchMode, ByVotes)
 
     member store.HeaderTitle = store.CreateCVal(nameof store.HeaderTitle, "")
+    member store.IsPlaying = store.CreateCVal(nameof store.IsPlaying, false)
+    member store.Title = store.CreateCVal<string option>(nameof store.Title, None)
+    member store.GetTitleDelay = store.CreateCVal(nameof store.GetTitleDelay, 5000)
 
 let getParameters (offset: int, settings: AppSettings) =
     GetStationParameters(offset, settings.LimitCount, settings.HideBroken)
@@ -69,7 +71,7 @@ type AppCallbacks(store: IShareStore, stationsService: IStationsService, window:
     [<JSInvokable>]
     member _.OnWindowResize(width: int, height: int) =
         task {
-            store.IsMenuOpen.Publish (width > 800)
+            store.IsMenuOpen.Publish(width > 800)
 
             let w = if width < 600 then 600 else width
             let h = if height < 400 then 400 else height
@@ -205,7 +207,6 @@ let stationsList (store: IShareStore, localizer: IStringLocalizer<SharedResource
                     else
                         curr.IsFavorite
 
-
             if stations.Any() then
                 div {
                     class' "stations-list"
@@ -217,6 +218,7 @@ let stationsList (store: IShareStore, localizer: IStringLocalizer<SharedResource
                             onclick (fun _ ->
                                 let selected = Selected station
                                 store.SelectedStationIsFavorite.Publish station.IsFavorite
+                                store.IsPlaying.Publish false
                                 store.SelectedStation.Publish selected)
 
                             stationItem (station, isFavorite station)
@@ -426,7 +428,6 @@ let countriesPage =
                                             loadingExperimental true
                                         }
                                     }
-
                             }
                 }
             })
@@ -608,205 +609,224 @@ let stationsByClicks =
 
             stationsList (store, localizer))
 
+let rec getTitle (store: IShareStore, metadataService: IMetadataService) =
+    task {
+        let SelectedStation = store.SelectedStation.Value
+
+        match SelectedStation with
+        | NotSelected -> store.Title.Publish None
+        | Selected station ->
+            if store.IsPlaying.Value then
+                let! titleOpt = metadataService.GetTitleAsync station.UrlResolved
+
+                match titleOpt with
+                | Some title when not (String.IsNullOrWhiteSpace title) ->
+                    store.Title.Publish titleOpt
+                    do! Task.Delay store.GetTitleDelay.Value
+                    return! getTitle (store, metadataService)
+                | _ -> store.Title.Publish None
+            else
+                store.Title.Publish None
+    }
+
 let player =
-    html.inject
-        (fun
-            (store: IShareStore,
-             jsRuntime: IJSRuntime,
-             localizer: IStringLocalizer<SharedResources>,
-             services: IServices) ->
-            adapt {
-                let! selectedStation = store.SelectedStation
-                let! isPlaying, setIsPlaying = cval(false).WithSetter()
-                let! visiblePopover, setVisiblePopover = cval(false).WithSetter()
-                let! volume, setVolume = cval(store.Volume.Value).WithSetter()
-                let! selectedStationIsFavorite = store.SelectedStationIsFavorite
+    html.inject (fun (store: IShareStore, jsRuntime: IJSRuntime, services: IServices) ->
+        adapt {
+            let! selectedStation = store.SelectedStation
+            let! isPlaying = store.IsPlaying
+            let! visiblePopover, setVisiblePopover = cval(false).WithSetter()
+            let! volume, setVolume = cval(store.Volume.Value).WithSetter()
+            let! selectedStationIsFavorite = store.SelectedStationIsFavorite
 
-                match selectedStation with
-                | NotSelected ->
-                    div {
-                        style' "text-align:center;"
-                        localizer["NoStationSelected"]
-                    }
-                | Selected station ->
+            match selectedStation with
+            | NotSelected ->
+                div {
+                    style' "text-align:center;"
+                    services.Localizer["NoStationSelected"]
+                }
+            | Selected station ->
+                FluentStack'' {
+                    Orientation Orientation.Horizontal
+                    VerticalAlignment VerticalAlignment.Center
+
+                    stationIcon station.Favicon
+
                     FluentStack'' {
-                        Orientation Orientation.Horizontal
-                        VerticalAlignment VerticalAlignment.Center
-
-                        stationIcon station.Favicon
+                        Orientation Orientation.Vertical
+                        VerticalGap 4
+                        style' "max-width: 500px;overflow: hidden;"
 
                         FluentStack'' {
-                            Orientation Orientation.Vertical
-                            VerticalGap 4
-                            style' "max-width: 500px;overflow: hidden;"
+                            Orientation Orientation.Horizontal
+                            VerticalAlignment VerticalAlignment.Center
 
-                            FluentStack'' {
-                                Orientation Orientation.Horizontal
-                                VerticalAlignment VerticalAlignment.Center
-
-                                if not (String.IsNullOrEmpty station.CountryCode) then
-                                    img {
-                                        class' "flag-icon"
-                                        title' station.Country
-                                        src $"./images/flags/{station.CountryCode.ToLower()}.svg"
-                                        loadingExperimental true
-                                    }
-
-                                if not (String.IsNullOrEmpty station.Homepage) then
-                                    FluentAnchor'' {
-                                        class' "station-name"
-                                        title' station.Name
-                                        Appearance Appearance.Hypertext
-                                        href "#"
-                                        OnClick(fun _ -> services.LinkOpeningService.OpenUrl station.Homepage)
-
-                                        station.Name
-                                    }
-                                else
-                                    span {
-                                        class' "station-name"
-                                        title' station.Name
-                                        station.Name
-                                    }
-                            }
-
-                            FluentStack'' {
-                                Orientation Orientation.Horizontal
-                                VerticalAlignment VerticalAlignment.Center
-                                HorizontalGap 4
-
-                                FluentIcon'' {
-                                    Value(
-                                        if selectedStationIsFavorite then
-                                            Icons.Filled.Size16.Heart() :> Icon
-                                        else
-                                            Icons.Regular.Size16.Heart() :> Icon
-                                    )
+                            if not (String.IsNullOrEmpty station.CountryCode) then
+                                img {
+                                    class' "flag-icon"
+                                    title' station.Country
+                                    src $"./images/flags/{station.CountryCode.ToLower()}.svg"
+                                    loadingExperimental true
                                 }
 
-                                span { $"{station.Codec} {station.Bitrate} kbps " }
-                                span { station.Language }
+                            if not (String.IsNullOrEmpty station.Homepage) then
+                                FluentAnchor'' {
+                                    class' "station-name"
+                                    title' station.Name
+                                    Appearance Appearance.Hypertext
+                                    href "#"
+                                    OnClick(fun _ -> services.LinkOpeningService.OpenUrl station.Homepage)
+
+                                    station.Name
+                                }
+                            else
+                                span {
+                                    class' "station-name"
+                                    title' station.Name
+                                    station.Name
+                                }
+                        }
+
+                        FluentStack'' {
+                            Orientation Orientation.Horizontal
+                            VerticalAlignment VerticalAlignment.Center
+                            HorizontalGap 4
+
+                            FluentIcon'' {
+                                Value(
+                                    if selectedStationIsFavorite then
+                                        Icons.Filled.Size16.Heart() :> Icon
+                                    else
+                                        Icons.Regular.Size16.Heart() :> Icon
+                                )
                             }
 
-                            div {
-                                class' "player-tags"
-
-                                if not (String.IsNullOrWhiteSpace station.Tags) then
-                                    station.Tags.Split ","
-                                    |> Array.mapi (fun i tag ->
-                                        fragment {
-                                            if i > 0 then
-                                                ", "
-
-                                            a {
-                                                href $"/stationsByTag/{tag}"
-                                                tag
-                                            }
-                                        })
-                            }
+                            span { $"{station.Codec} {station.Bitrate} kbps " }
+                            span { station.Language }
                         }
 
-                        FluentSpacer''
+                        div {
+                            class' "player-tags"
 
-                        FluentButton'' {
-                            class' "player-button"
-                            Title(string (localizer["AddToFavorites"]))
+                            if not (String.IsNullOrWhiteSpace station.Tags) then
+                                station.Tags.Split ","
+                                |> Array.mapi (fun i tag ->
+                                    fragment {
+                                        if i > 0 then
+                                            ", "
 
-                            IconStart(
-                                if selectedStationIsFavorite then
-                                    Icons.Filled.Size48.Heart() :> Icon
-                                else
-                                    Icons.Regular.Size48.Heart() :> Icon
-                            )
-
-                            OnClick(fun _ ->
-                                if services.DataAccess.Exists station.Id then
-                                    services.DataAccess.Remove station.Id
-                                    station.IsFavorite <- false
-                                else
-                                    services.DataAccess.Add station
-                                    station.IsFavorite <- true
-
-                                store.SelectedStationIsFavorite.Publish station.IsFavorite)
-
+                                        a {
+                                            href $"/stationsByTag/{tag}"
+                                            tag
+                                        }
+                                    })
                         }
-
-                        FluentButton'' {
-                            Id "player-button-volume"
-                            class' "player-button"
-                            Title(string (localizer["Volume"]))
-                            IconStart(Icons.Regular.Size48.Speaker2())
-                            OnClick(fun _ -> setVisiblePopover true)
-                        }
-
-                        FluentButton'' {
-                            class' "player-button"
-                            Title(string (localizer["PlayPause"]))
-
-                            IconStart(
-                                if isPlaying then
-                                    Icons.Regular.Size48.RecordStop() :> Icon
-                                else
-                                    Icons.Regular.Size48.PlayCircle() :> Icon
-                            )
-
-                            OnClick(fun _ ->
-                                task {
-                                    let newPlaying = not isPlaying
-                                    setIsPlaying newPlaying
-                                    jsRuntime.InvokeVoidAsync("playAudio", newPlaying) |> ignore
-                                })
-                        }
-
                     }
 
-                    FluentPopover'' {
-                        AnchorId "player-button-volume"
-                        style' "width: 50px;height: 260px;"
-                        VerticalPosition VerticalPosition.Top
-                        Open visiblePopover
-                        OpenChanged(fun v -> setVisiblePopover v)
+                    FluentSpacer''
 
-                        Body(
-                            FluentSliderFloat'' {
-                                Orientation Orientation.Vertical
-                                Min 0.0
-                                Max 1.0
-                                Step 0.01
-                                Value volume
+                    FluentButton'' {
+                        class' "player-button"
+                        Title(string (services.Localizer["AddToFavorites"]))
 
-                                ValueChanged(fun v ->
-                                    setVolume v
-                                    store.Volume.Publish v
-                                    jsRuntime.InvokeVoidAsync("setVolume", v) |> ignore)
-
-                            }
+                        IconStart(
+                            if selectedStationIsFavorite then
+                                Icons.Filled.Size48.Heart() :> Icon
+                            else
+                                Icons.Regular.Size48.Heart() :> Icon
                         )
+
+                        OnClick(fun _ ->
+                            if services.DataAccess.Exists station.Id then
+                                services.DataAccess.Remove station.Id
+                                station.IsFavorite <- false
+                            else
+                                services.DataAccess.Add station
+                                station.IsFavorite <- true
+
+                            store.SelectedStationIsFavorite.Publish station.IsFavorite)
+
                     }
 
-                    audio {
-                        id "player"
-                        style' "display:none;"
-                        controls
-                        src station.UrlResolved
+                    FluentButton'' {
+                        Id "player-button-volume"
+                        class' "player-button"
+                        Title(string (services.Localizer["Volume"]))
+                        IconStart(Icons.Regular.Size48.Speaker2())
+                        OnClick(fun _ -> setVisiblePopover true)
+                    }
 
-                        onstalled (fun _ ->
+                    FluentButton'' {
+                        class' "player-button"
+                        Title(string (services.Localizer["PlayPause"]))
+
+                        IconStart(
+                            if isPlaying then
+                                Icons.Regular.Size48.RecordStop() :> Icon
+                            else
+                                Icons.Regular.Size48.PlayCircle() :> Icon
+                        )
+
+                        OnClick(fun _ ->
                             task {
-                                let msg = string (localizer["ErrorLoadingStation"])
-                                let errorMessage = $"{msg}: {station.Name} ({station.UrlResolved})"
-
-                                services.ToastService.ShowError errorMessage |> ignore
-                            })
-
-                        onerror (fun _ ->
-                            task {
-                                let msg = string (localizer["ErrorLoadingStation"])
-                                let errorMessage = $"{msg}: {station.Name} ({station.UrlResolved})"
-
-                                services.ToastService.ShowError errorMessage |> ignore
+                                let newPlaying = not isPlaying
+                                store.IsPlaying.Publish newPlaying
+                                jsRuntime.InvokeVoidAsync("playAudio", newPlaying) |> ignore
                             })
                     }
-            })
+                }
+
+                FluentPopover'' {
+                    AnchorId "player-button-volume"
+                    style' "width: 50px;height: 260px;"
+                    VerticalPosition VerticalPosition.Top
+                    Open visiblePopover
+                    OpenChanged(fun v -> setVisiblePopover v)
+
+                    Body(
+                        FluentSliderFloat'' {
+                            Orientation Orientation.Vertical
+                            Min 0.0
+                            Max 1.0
+                            Step 0.01
+                            Value volume
+
+                            ValueChanged(fun v ->
+                                setVolume v
+                                store.Volume.Publish v
+                                jsRuntime.InvokeVoidAsync("setVolume", v) |> ignore)
+                        }
+                    )
+                }
+
+                audio {
+                    id "player"
+                    style' "display:none;"
+                    controls
+                    src station.UrlResolved
+
+                    onstalled (fun _ ->
+                        task {
+                            let msg = string (services.Localizer["ErrorLoadingStation"])
+                            let errorMessage = $"{msg}: {station.Name} ({station.UrlResolved})"
+
+                            services.ToastService.ShowError errorMessage |> ignore
+                            store.IsPlaying.Publish false
+                        })
+
+                    onerror (fun _ ->
+                        task {
+                            let msg = string (services.Localizer["ErrorLoadingStation"])
+                            let errorMessage = $"{msg}: {station.Name} ({station.UrlResolved})"
+
+                            services.ToastService.ShowError errorMessage |> ignore
+                            store.IsPlaying.Publish false
+                        })
+
+                    onended (fun _ -> store.IsPlaying.Publish false)
+                    onpause (fun _ -> store.IsPlaying.Publish false)
+                    onplay (fun _ -> task { return! getTitle (store, services.MetadataService) })
+                }
+        })
 
 let appHeader =
     html.inject
@@ -846,6 +866,9 @@ let appHeader =
                     adapt {
                         let! theme = store.Theme
 
+                        if store.GetTitleDelay.Value <> options.Value.GetTitleDelay then
+                            store.GetTitleDelay.Publish options.Value.GetTitleDelay
+
                         FluentDesignTheme'' {
                             StorageName "theme"
                             Mode store.Theme.Value
@@ -874,26 +897,45 @@ let appHeader =
             })
 
 let appFooter =
-    html.inject (fun (los: ILinkOpeningService, localizer: IStringLocalizer<SharedResources>) ->
+    html.inject (fun (store: IShareStore, services: IServices) ->
         FluentFooter'' {
             FluentAnchor'' {
                 Appearance Appearance.Hypertext
                 href "#"
-                OnClick(fun _ -> los.OpenUrl "https://slaveoftime.github.io/Fun.Blazor.Docs/")
+                OnClick(fun _ -> services.LinkOpeningService.OpenUrl "https://slaveoftime.github.io/Fun.Blazor.Docs/")
 
                 "Fun.Blazor"
             }
 
-            div {
-                id "status-bar"
-                style' "flex-grow: 1;padding-left: 10px;"
-                data (string (localizer["NowPlaying"]))
+            adapt {
+                let! title = store.Title
+                let locTitle = services.Localizer["NowPlaying"]
+
+                let sTitle =
+                    match title with
+                    | Some t when not (String.IsNullOrWhiteSpace t) -> $"{locTitle}: {t}"
+                    | _ -> ""
+
+                div {
+                    id "status-bar"
+                    style' "flex-grow: 1;padding-left: 10px;cursor: pointer;text-align: center;"
+
+                    onclick (fun _ ->
+                        match title with
+                        | Some t when not (String.IsNullOrWhiteSpace t) ->
+                            services.LinkOpeningService.OpenUrl
+                                $"https://www.youtube.com/results?search_query={Uri.EscapeDataString t}"
+                        | _ -> ())
+
+                    sTitle
+                }
             }
+
 
             FluentAnchor'' {
                 Appearance Appearance.Hypertext
                 href "#"
-                OnClick(fun _ -> los.OpenUrl "https://www.tryphotino.io")
+                OnClick(fun _ -> services.LinkOpeningService.OpenUrl "https://www.tryphotino.io")
 
                 "Photino"
             }

@@ -11,6 +11,7 @@ open Microsoft.FluentUI.AspNetCore.Components
 open log4net.Config
 open Photino.Blazor
 open RadioBrowser
+open System.Net.Http
 
 [<STAThread>]
 [<EntryPoint>]
@@ -52,6 +53,17 @@ let main args =
     builder.Services.AddScoped<IListsService, ListsService>() |> ignore
     builder.Services.AddScoped<IServices, Services>() |> ignore
 
+    builder.Services.AddSingleton<HttpClient>(fun sp ->
+        let client =
+            new HttpClient(new HttpClientHandler(AllowAutoRedirect = true), disposeHandler = true)
+
+        client.DefaultRequestHeaders.Add("Icy-MetaData", "1")
+        client.DefaultRequestHeaders.UserAgent.ParseAdd "FSharp-RadioProxy"
+        client)
+    |> ignore
+
+    builder.Services.AddScoped<IMetadataService, MetadataService>() |> ignore
+
     builder.Services.AddScoped<IFavoritesDataAccess, FavoritesDataAccess>()
     |> ignore
 
@@ -76,6 +88,10 @@ let main args =
                 settings.Value.Save())
 
         )
+        .RegisterWindowClosingHandler(fun _ _ ->
+            let client = application.Services.GetRequiredService<HttpClient>()
+            client.Dispose()
+            false)
         .SetSize(settings.Value.WindowWidth, settings.Value.WindowHeight)
         .SetIconFile(Path.Combine(AppSettings.WwwRootFolderName, AppSettings.FavIconFileName))
         .SetTitle

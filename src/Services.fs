@@ -12,6 +12,8 @@ open Microsoft.Extensions.Localization
 open Microsoft.Extensions.Options
 open Microsoft.FluentUI.AspNetCore.Components
 open FSharp.Data
+open System.Net.Http
+open System.Text
 
 type Platform =
     | Windows
@@ -406,19 +408,87 @@ type ListsService(handler: IHttpHandler) =
 
             }
 
+type SharedResources() = class end
+
+type IMetadataService =
+    abstract member GetTitleAsync: string -> Async<string option>
 
 type IServices =
     abstract member ToastService: IToastService
     abstract member DataAccess: IFavoritesDataAccess
     abstract member LinkOpeningService: ILinkOpeningService
+    abstract member Localizer: IStringLocalizer<SharedResources>
+    abstract member MetadataService: IMetadataService
 
 type Services
     (
         toastService: IToastService,
         dataAccess: IFavoritesDataAccess,
-        linkOpeningService: ILinkOpeningService
+        linkOpeningService: ILinkOpeningService,
+        localizer: IStringLocalizer<SharedResources>,
+        metadataService: IMetadataService
     ) =
     interface IServices with
         member this.ToastService = toastService
         member this.DataAccess: IFavoritesDataAccess = dataAccess
         member this.LinkOpeningService: ILinkOpeningService = linkOpeningService
+        member this.Localizer: IStringLocalizer<SharedResources> = localizer
+        member this.MetadataService: IMetadataService = metadataService
+
+
+type MetadataService(client: HttpClient) =
+
+    let extractStreamTitle (text: string) =
+        let prefix = "StreamTitle='"
+
+        if text.Contains prefix then
+            let start = text.IndexOf prefix + prefix.Length
+            let endIdx = text.IndexOf("';", start)
+
+            if endIdx > start then
+                Some(text.Substring(start, endIdx - start))
+            else
+                None
+        else
+            None
+
+    interface IMetadataService with
+        member this.GetTitleAsync(url: string) =
+            async {
+                use! resp =
+                    client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead)
+                    |> Async.AwaitTask
+
+                resp.EnsureSuccessStatusCode() |> ignore
+
+                let metaInt =
+                    match resp.Headers.TryGetValues "icy-metaint" with
+                    | true, values ->
+                        let value = Seq.head values
+
+                        match Int32.TryParse value with
+                        | true, v -> v
+                        | _ -> 0
+                    | _ -> 0
+
+                if metaInt > 0 then
+                    let buffer = Array.zeroCreate<byte> metaInt
+                    use! stream = resp.Content.ReadAsStreamAsync() |> Async.AwaitTask
+                    let! _ = stream.ReadExactlyAsync(buffer, 0, buffer.Length).AsTask() |> Async.AwaitTask
+
+                    // После блока аудио идёт байт длины метаданных
+                    let lenByte = stream.ReadByte()
+                    let metaLength = lenByte * 16
+
+                    if metaLength > 0 then
+                        let metaBuffer = Array.zeroCreate<byte> metaLength
+                        let! metaRead = stream.ReadAsync(metaBuffer, 0, metaLength) |> Async.AwaitTask
+
+                        return
+                            Encoding.UTF8.GetString(metaBuffer, 0, metaRead).TrimEnd('\u0000')
+                            |> extractStreamTitle
+                    else
+                        return None
+                else
+                    return None
+            }
