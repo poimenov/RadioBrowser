@@ -42,6 +42,7 @@ type public AppSettings() =
     member val DefaultOrder = "votes" with get, set
     member val ReverseOrder = true with get, set
     member val GetTitleDelay = 5000 with get, set
+    member val HistoryTruncateCount = 100 with get, set
 
     [<JsonIgnore>]
     member val CurrentRegion = RegionInfo.CurrentRegion with get

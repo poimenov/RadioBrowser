@@ -17,6 +17,11 @@ open Fun.Blazor.Router
 open FSharp.Data.Adaptive
 open System.Threading.Tasks
 
+type HistoryRecord =
+    { StartTime: DateTime
+      Title: string
+      StationName: string }
+
 type Github() =
     inherit
         Icon(
@@ -35,6 +40,7 @@ type CurrentSearchMode =
     | Favorites
     | ByVotes
     | ByClicks
+    | History
 
 type IShareStore with
     member store.IsMenuOpen = store.CreateCVal(nameof store.IsMenuOpen, true)
@@ -64,6 +70,11 @@ type IShareStore with
     member store.Title = store.CreateCVal<string option>(nameof store.Title, None)
     member store.GetTitleDelay = store.CreateCVal(nameof store.GetTitleDelay, 5000)
 
+    member store.History = store.CreateCVal<HistoryRecord list>(nameof store.History, [])
+
+    member store.HistoryTruncateCount =
+        store.CreateCVal(nameof store.HistoryTruncateCount, 100)
+
 let getParameters (offset: int, settings: AppSettings) =
     GetStationParameters(offset, settings.LimitCount, settings.HideBroken)
 
@@ -92,6 +103,7 @@ type AppCallbacks(store: IShareStore, stationsService: IStationsService, window:
                 | ByClicks -> stationsService.GetStationsByClicks parameters
                 | Favorites -> stationsService.GetFavoriteStations parameters
                 | Search ssp -> stationsService.SearchStations(ssp, parameters)
+                | _ -> Task.FromResult(Enumerable.Empty<Station>().ToArray()) |> Async.AwaitTask
 
             if newStations.Count() > 0 then
                 let stations = store.Stations.Value.Concat newStations
@@ -256,6 +268,7 @@ let stationsByCountry (countryCode: string) =
                     store.Stations.Publish stations
                     let regionInfo = RegionInfo countryCode
                     store.HeaderTitle.Publish $"""{localizer["StationsByCountry"]}: {regionInfo.EnglishName}"""
+                    store.IsPlaying.Publish false
                 })
 
             fragment {
@@ -341,6 +354,7 @@ let stationsByTag (tag: string) =
                     let parameters = getParameters (0, stationsService.Settings)
                     let! stations = stationsService.SearchStations(searchParams, parameters)
                     store.Stations.Publish stations
+                    store.IsPlaying.Publish false
                 })
 
             stationsList (store, localizer))
@@ -361,6 +375,7 @@ let countriesPage =
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     store.HeaderTitle.Publish localizer["Countries"]
+                    store.IsPlaying.Publish false
 
                     if not (store.Countries.Value.Any()) then
                         let! countries = listsService.GetCountries()
@@ -442,6 +457,7 @@ let tagsPage =
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     store.HeaderTitle.Publish localizer["Tags"]
+                    store.IsPlaying.Publish false
 
                     if not (store.Tags.Value.Any()) then
                         let! tags = listsService.GetTags()
@@ -569,6 +585,7 @@ let favoriteStations =
                     let parameters = getParameters (0, stationsService.Settings)
                     let! stations = stationsService.GetFavoriteStations parameters
                     store.Stations.Publish stations
+                    store.IsPlaying.Publish false
                 })
 
             stationsList (store, localizer))
@@ -587,6 +604,7 @@ let stationsByVotes =
                     let parameters = getParameters (0, stationsService.Settings)
                     let! stations = stationsService.GetStationsByVotes parameters
                     store.Stations.Publish stations
+                    store.IsPlaying.Publish false
                 })
 
             stationsList (store, localizer))
@@ -605,9 +623,57 @@ let stationsByClicks =
                     let parameters = getParameters (0, stationsService.Settings)
                     let! stations = stationsService.GetStationsByClicks parameters
                     store.Stations.Publish stations
+                    store.IsPlaying.Publish false
                 })
 
             stationsList (store, localizer))
+
+let historyPage =
+    html.inject (fun (store: IShareStore, localizer: IStringLocalizer<SharedResources>, los: ILinkOpeningService) ->
+        adapt {
+            store.HeaderTitle.Publish localizer["History"]
+            store.SearchMode.Publish History
+            store.IsPlaying.Publish false
+            let! history, setHistory = store.History.WithSetter()
+
+            if history.Length = 0 then
+                div {
+                    style' "text-align:center;"
+                    localizer["NoHistory"]
+                }
+            else
+                table {
+                    class' "history-table"
+
+                    thead {
+                        tr {
+                            th { localizer["Time"] }
+                            th { localizer["Station"] }
+                            th { localizer["Title"] }
+                        }
+                    }
+
+                    tbody {
+                        for record in history do
+                            tr {
+                                td { record.StartTime.ToString("g", CultureInfo.CurrentCulture) }
+                                td { record.StationName }
+
+                                td {
+                                    span {
+                                        class' "link"
+
+                                        onclick (fun _ ->
+                                            los.OpenUrl
+                                                $"https://www.youtube.com/results?search_query={Uri.EscapeDataString record.Title}")
+
+                                        record.Title
+                                    }
+                                }
+                            }
+                    }
+                }
+        })
 
 let rec getTitle (store: IShareStore, metadataService: IMetadataService) =
     task {
@@ -622,6 +688,20 @@ let rec getTitle (store: IShareStore, metadataService: IMetadataService) =
                 match titleOpt with
                 | Some title when not (String.IsNullOrWhiteSpace title) ->
                     store.Title.Publish titleOpt
+                    let history = store.History.Value
+
+                    let record =
+                        { StartTime = DateTime.Now
+                          Title = title
+                          StationName = station.Name }
+
+                    if
+                        history
+                        |> List.exists (fun r -> r.Title = title && r.StationName = station.Name)
+                        |> not
+                    then
+                        store.History.Publish(record :: history |> List.truncate store.HistoryTruncateCount.Value)
+
                     do! Task.Delay store.GetTitleDelay.Value
                     return! getTitle (store, metadataService)
                 | _ -> store.Title.Publish None
@@ -869,6 +949,9 @@ let appHeader =
                         if store.GetTitleDelay.Value <> options.Value.GetTitleDelay then
                             store.GetTitleDelay.Publish options.Value.GetTitleDelay
 
+                        if store.HistoryTruncateCount.Value <> options.Value.HistoryTruncateCount then
+                            store.HistoryTruncateCount.Publish options.Value.HistoryTruncateCount
+
                         FluentDesignTheme'' {
                             StorageName "theme"
                             Mode store.Theme.Value
@@ -919,6 +1002,7 @@ let appFooter =
                 div {
                     id "status-bar"
                     style' "flex-grow: 1;padding-left: 10px;cursor: pointer;text-align: center;"
+                    title' (string (services.Localizer["SearchOnYouTube"]))
 
                     onclick (fun _ ->
                         match title with
@@ -999,6 +1083,14 @@ let navmenus =
                     Tooltip(string (localizer["ByClicks"]))
                     localizer["ByClicks"]
                 }
+
+                FluentNavLink'' {
+                    Href "/history"
+                    Match NavLinkMatch.Prefix
+                    Icon(Icons.Regular.Size20.History())
+                    Tooltip(string (localizer["History"]))
+                    localizer["History"]
+                }
             }
         })
 
@@ -1011,6 +1103,7 @@ let routes =
            routeCif "/stationsByCountry/%s" (fun x -> stationsByCountry (x))
            routeCi "/tags" tagsPage
            routeCif "/stationsByTag/%s" (fun x -> stationsByTag (x))
+           routeCi "/history" historyPage
            routeAny homePage |]
 
 let app =
@@ -1094,6 +1187,7 @@ let app =
                                         | Favorites -> Icons.Regular.Size32.Heart()
                                         | ByVotes -> Icons.Regular.Size24.Vote()
                                         | ByClicks -> Icons.Regular.Size24.CursorClick()
+                                        | History -> Icons.Regular.Size24.History()
 
 
                                     FluentStack'' {
