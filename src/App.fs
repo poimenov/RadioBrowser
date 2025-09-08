@@ -621,50 +621,61 @@ let stationsByClicks =
             stationsList (store, localizer))
 
 let historyPage =
-    html.inject (fun (store: IShareStore, localizer: IStringLocalizer<SharedResources>, los: ILinkOpeningService) ->
-        adapt {
-            store.HeaderTitle.Publish localizer["History"]
-            store.SearchMode.Publish History
-            let! history, setHistory = store.History.WithSetter()
+    html.inject
+        (fun
+            (store: IShareStore,
+             localizer: IStringLocalizer<SharedResources>,
+             los: ILinkOpeningService,
+             options: IOptions<AppSettings>) ->
+            adapt {
+                store.HeaderTitle.Publish localizer["History"]
+                store.SearchMode.Publish History
+                let! history, setHistory = store.History.WithSetter()
 
-            if history.Length = 0 then
-                div {
-                    style' "text-align:center;"
-                    localizer["NoHistory"]
-                }
-            else
-                table {
-                    class' "history-table"
-
-                    thead {
-                        tr {
-                            th { localizer["Time"] }
-                            th { localizer["Station"] }
-                            th { localizer["Title"] }
-                        }
+                if history.Length = 0 then
+                    div {
+                        style' "text-align:center;"
+                        localizer["NoHistory"]
                     }
+                else
+                    table {
+                        class' "history-table"
 
-                    tbody {
-                        for record in history do
+                        thead {
                             tr {
-                                td { record.StartTime.ToString("g", CultureInfo.CurrentCulture) }
-                                td { record.StationName }
+                                th { localizer["Time"] }
+                                th { localizer["Station"] }
+                                th { localizer["Title"] }
+                            }
+                        }
 
-                                td {
-                                    span {
-                                        class' "link"
+                        tbody {
+                            for record in history do
+                                tr {
+                                    td { record.StartTime.ToString("g", CultureInfo.CurrentCulture) }
+                                    td { record.StationName }
 
-                                        onclick (fun _ ->
-                                            los.OpenUrl
-                                                $"https://www.youtube.com/results?search_query={Uri.EscapeDataString record.Title}")
+                                    td {
+                                        span {
+                                            class' "link"
 
-                                        record.Title
+                                            onclick (fun _ ->
+                                                los.OpenUrl(
+                                                    String.Format(
+                                                        options.Value.TrackSearchUrl,
+                                                        Uri.EscapeDataString record.Title
+                                                    )
+                                                )
+
+                                            )
+
+                                            record.Title
+                                        }
                                     }
                                 }
-                            }
+                        }
                     }
-                }
-        })
+            })
 
 let rec getTitle (store: IShareStore, metadataService: IMetadataService) =
     task {
@@ -939,7 +950,7 @@ let appHeader =
             })
 
 let appFooter =
-    html.inject (fun (store: IShareStore, services: IServices) ->
+    html.inject (fun (store: IShareStore, services: IServices, options: IOptions<AppSettings>) ->
         FluentFooter'' {
             FluentAnchor'' {
                 Appearance Appearance.Hypertext
@@ -966,8 +977,9 @@ let appFooter =
                     onclick (fun _ ->
                         match title with
                         | Some t when not (String.IsNullOrWhiteSpace t) ->
-                            services.LinkOpeningService.OpenUrl
-                                $"https://www.youtube.com/results?search_query={Uri.EscapeDataString t}"
+                            services.LinkOpeningService.OpenUrl(
+                                String.Format(options.Value.TrackSearchUrl, Uri.EscapeDataString t)
+                            )
                         | _ -> ())
 
                     sTitle

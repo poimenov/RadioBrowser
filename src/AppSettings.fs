@@ -43,6 +43,7 @@ type public AppSettings() =
     member val ReverseOrder = true with get, set
     member val GetTitleDelay = 5000 with get, set
     member val HistoryTruncateCount = 100 with get, set
+    member val TrackSearchUrl = "https://www.youtube.com/results?search_query={0}" with get, set
 
     [<JsonIgnore>]
     member val CurrentRegion = RegionInfo.CurrentRegion with get
