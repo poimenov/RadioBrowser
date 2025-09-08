@@ -5,6 +5,7 @@ open System
 open System.Collections.Generic
 open System.Globalization
 open System.Linq
+open System.Threading.Tasks
 open Microsoft.AspNetCore.Components
 open Microsoft.AspNetCore.Components.Web
 open Microsoft.AspNetCore.Components.Routing
@@ -12,10 +13,9 @@ open Microsoft.Extensions.Localization
 open Microsoft.Extensions.Options
 open Microsoft.FluentUI.AspNetCore.Components
 open Microsoft.JSInterop
+open FSharp.Data.Adaptive
 open Fun.Blazor
 open Fun.Blazor.Router
-open FSharp.Data.Adaptive
-open System.Threading.Tasks
 
 type HistoryRecord =
     { StartTime: DateTime
@@ -230,7 +230,6 @@ let stationsList (store: IShareStore, localizer: IStringLocalizer<SharedResource
                             onclick (fun _ ->
                                 let selected = Selected station
                                 store.SelectedStationIsFavorite.Publish station.IsFavorite
-                                store.IsPlaying.Publish false
                                 store.SelectedStation.Publish selected)
 
                             stationItem (station, isFavorite station)
@@ -268,7 +267,6 @@ let stationsByCountry (countryCode: string) =
                     store.Stations.Publish stations
                     let regionInfo = RegionInfo countryCode
                     store.HeaderTitle.Publish $"""{localizer["StationsByCountry"]}: {regionInfo.EnglishName}"""
-                    store.IsPlaying.Publish false
                 })
 
             fragment {
@@ -354,7 +352,6 @@ let stationsByTag (tag: string) =
                     let parameters = getParameters (0, stationsService.Settings)
                     let! stations = stationsService.SearchStations(searchParams, parameters)
                     store.Stations.Publish stations
-                    store.IsPlaying.Publish false
                 })
 
             stationsList (store, localizer))
@@ -375,7 +372,6 @@ let countriesPage =
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     store.HeaderTitle.Publish localizer["Countries"]
-                    store.IsPlaying.Publish false
 
                     if not (store.Countries.Value.Any()) then
                         let! countries = listsService.GetCountries()
@@ -457,7 +453,6 @@ let tagsPage =
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     store.HeaderTitle.Publish localizer["Tags"]
-                    store.IsPlaying.Publish false
 
                     if not (store.Tags.Value.Any()) then
                         let! tags = listsService.GetTags()
@@ -585,7 +580,6 @@ let favoriteStations =
                     let parameters = getParameters (0, stationsService.Settings)
                     let! stations = stationsService.GetFavoriteStations parameters
                     store.Stations.Publish stations
-                    store.IsPlaying.Publish false
                 })
 
             stationsList (store, localizer))
@@ -604,7 +598,6 @@ let stationsByVotes =
                     let parameters = getParameters (0, stationsService.Settings)
                     let! stations = stationsService.GetStationsByVotes parameters
                     store.Stations.Publish stations
-                    store.IsPlaying.Publish false
                 })
 
             stationsList (store, localizer))
@@ -623,7 +616,6 @@ let stationsByClicks =
                     let parameters = getParameters (0, stationsService.Settings)
                     let! stations = stationsService.GetStationsByClicks parameters
                     store.Stations.Publish stations
-                    store.IsPlaying.Publish false
                 })
 
             stationsList (store, localizer))
@@ -633,7 +625,6 @@ let historyPage =
         adapt {
             store.HeaderTitle.Publish localizer["History"]
             store.SearchMode.Publish History
-            store.IsPlaying.Publish false
             let! history, setHistory = store.History.WithSetter()
 
             if history.Length = 0 then
@@ -710,7 +701,7 @@ let rec getTitle (store: IShareStore, metadataService: IMetadataService) =
     }
 
 let player =
-    html.inject (fun (store: IShareStore, jsRuntime: IJSRuntime, services: IServices) ->
+    html.inject (fun (store: IShareStore, services: IServices) ->
         adapt {
             let! selectedStation = store.SelectedStation
             let! isPlaying = store.IsPlaying
@@ -846,12 +837,7 @@ let player =
                                 Icons.Regular.Size48.PlayCircle() :> Icon
                         )
 
-                        OnClick(fun _ ->
-                            task {
-                                let newPlaying = not isPlaying
-                                store.IsPlaying.Publish newPlaying
-                                jsRuntime.InvokeVoidAsync("playAudio", newPlaying) |> ignore
-                            })
+                        OnClick(fun _ -> task { store.IsPlaying.Publish(not isPlaying) })
                     }
                 }
 
@@ -873,39 +859,12 @@ let player =
                             ValueChanged(fun v ->
                                 setVolume v
                                 store.Volume.Publish v
-                                jsRuntime.InvokeVoidAsync("setVolume", v) |> ignore)
+                                services.JsRuntime.InvokeVoidAsync("setVolume", v) |> ignore)
                         }
                     )
                 }
 
-                audio {
-                    id "player"
-                    style' "display:none;"
-                    controls
-                    src station.UrlResolved
 
-                    onstalled (fun _ ->
-                        task {
-                            let msg = string (services.Localizer["ErrorLoadingStation"])
-                            let errorMessage = $"{msg}: {station.Name} ({station.UrlResolved})"
-
-                            services.ToastService.ShowError errorMessage |> ignore
-                            store.IsPlaying.Publish false
-                        })
-
-                    onerror (fun _ ->
-                        task {
-                            let msg = string (services.Localizer["ErrorLoadingStation"])
-                            let errorMessage = $"{msg}: {station.Name} ({station.UrlResolved})"
-
-                            services.ToastService.ShowError errorMessage |> ignore
-                            store.IsPlaying.Publish false
-                        })
-
-                    onended (fun _ -> store.IsPlaying.Publish false)
-                    onpause (fun _ -> store.IsPlaying.Publish false)
-                    onplay (fun _ -> task { return! getTitle (store, services.MetadataService) })
-                }
         })
 
 let appHeader =
@@ -1108,26 +1067,23 @@ let routes =
 
 let app =
     html.inject
-        (fun
-            (hook: IComponentHook,
-             store: IShareStore,
-             options: IOptions<AppSettings>,
-             stationService: IStationsService,
-             dataAccess: IFavoritesDataAccess) ->
+        (fun (hook: IComponentHook, store: IShareStore, stationService: IStationsService, services: IServices) ->
             hook.AddInitializedTask(fun _ ->
                 task {
                     let update (ids: Guid array) =
                         async {
                             let! stations = stationService.GetStations ids
-                            stations |> dataAccess.Update |> ignore
+                            stations |> services.DataAccess.Update |> ignore
                         }
 
-                    let favCount = dataAccess.FavoritesCount()
+                    let favCount = services.DataAccess.FavoritesCount()
                     let favArrs = new List<Station array>()
                     let mutable count = 0
 
                     while count < favCount do
-                        let favs = dataAccess.GetFavorites(getParameters (count, stationService.Settings))
+                        let favs =
+                            services.DataAccess.GetFavorites(getParameters (count, stationService.Settings))
+
                         favArrs.Add favs
                         count <- count + favs.Length
 
@@ -1167,15 +1123,30 @@ let app =
 
                                 adapt {
                                     let! selectedStation = store.SelectedStation
+                                    let! isPlaying = store.IsPlaying
                                     let! searchMode = store.SearchMode
                                     let! headerTitle = store.HeaderTitle
+
+                                    let audioUrl =
+                                        match selectedStation with
+                                        | NotSelected -> None
+                                        | Selected station -> Some station.UrlResolved
+
+                                    services.JsRuntime.InvokeVoidAsync("playAudio", isPlaying, audioUrl) |> ignore
+
+                                    let getErrorMessage =
+                                        match selectedStation with
+                                        | NotSelected -> ""
+                                        | Selected station ->
+                                            let msg = string (services.Localizer["ErrorLoadingStation"])
+                                            $"{msg}: {station.Name} ({station.UrlResolved})"
 
                                     let icon: Icon =
                                         match searchMode with
                                         | Search parameters ->
                                             if parameters.CountryCode.IsSome then
                                                 if
-                                                    parameters.CountryCode.Value = options.Value.CurrentRegion.TwoLetterISORegionName
+                                                    parameters.CountryCode.Value = stationService.Settings.CurrentRegion.TwoLetterISORegionName
                                                 then
                                                     Icons.Regular.Size24.Home()
                                                 else
@@ -1222,6 +1193,30 @@ let app =
                                         div {
                                             class' "player-container"
                                             player
+
+                                            audio {
+                                                id "player"
+                                                style' "display:none;"
+                                                controls
+
+                                                onstalled (fun _ ->
+                                                    task {
+                                                        services.ToastService.ShowError getErrorMessage |> ignore
+                                                        store.IsPlaying.Publish false
+                                                    })
+
+                                                onerror (fun _ ->
+                                                    task {
+                                                        services.ToastService.ShowError getErrorMessage |> ignore
+                                                        store.IsPlaying.Publish false
+                                                    })
+
+                                                onended (fun _ -> store.IsPlaying.Publish false)
+                                                onpause (fun _ -> store.IsPlaying.Publish false)
+
+                                                onplay (fun _ ->
+                                                    task { return! getTitle (store, services.MetadataService) })
+                                            }
                                         }
                                 }
                             }

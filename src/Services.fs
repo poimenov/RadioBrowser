@@ -11,6 +11,7 @@ open Microsoft.Extensions.Logging
 open Microsoft.Extensions.Localization
 open Microsoft.Extensions.Options
 open Microsoft.FluentUI.AspNetCore.Components
+open Microsoft.JSInterop
 open FSharp.Data
 open System.Net.Http
 open System.Text
@@ -419,6 +420,7 @@ type IServices =
     abstract member LinkOpeningService: ILinkOpeningService
     abstract member Localizer: IStringLocalizer<SharedResources>
     abstract member MetadataService: IMetadataService
+    abstract member JsRuntime: IJSRuntime
 
 type Services
     (
@@ -426,7 +428,8 @@ type Services
         dataAccess: IFavoritesDataAccess,
         linkOpeningService: ILinkOpeningService,
         localizer: IStringLocalizer<SharedResources>,
-        metadataService: IMetadataService
+        metadataService: IMetadataService,
+        jsRuntime: IJSRuntime
     ) =
     interface IServices with
         member this.ToastService = toastService
@@ -434,6 +437,7 @@ type Services
         member this.LinkOpeningService: ILinkOpeningService = linkOpeningService
         member this.Localizer: IStringLocalizer<SharedResources> = localizer
         member this.MetadataService: IMetadataService = metadataService
+        member this.JsRuntime: IJSRuntime = jsRuntime
 
 
 type MetadataService(client: HttpClient) =
@@ -475,8 +479,6 @@ type MetadataService(client: HttpClient) =
                     let buffer = Array.zeroCreate<byte> metaInt
                     use! stream = resp.Content.ReadAsStreamAsync() |> Async.AwaitTask
                     let! _ = stream.ReadExactlyAsync(buffer, 0, buffer.Length).AsTask() |> Async.AwaitTask
-
-                    // После блока аудио идёт байт длины метаданных
                     let lenByte = stream.ReadByte()
                     let metaLength = lenByte * 16
 

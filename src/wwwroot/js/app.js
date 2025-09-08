@@ -24,13 +24,18 @@ window.setCallbacks = (elementId, dotNetRef) => {
 };
 
 
-function playAudio(isPlaying) {
+function playAudio(isPlaying, src) {
     var player = document.getElementById("player");
-    if (isPlaying) {
-        player.play();        
-    } else {
-        player.pause();
-    }
+    if (src)
+    {
+        if (player.src != src)
+            player.src = src;
+        if (isPlaying) {
+            player.play();        
+        } else {
+            player.pause();
+        }
+    }        
 }
 
 function setVolume(volume) {
