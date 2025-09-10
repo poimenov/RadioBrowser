@@ -4,8 +4,10 @@ module RadioBrowser.Services
 open System
 open System.Diagnostics
 open System.Net
+open System.Net.Http
 open System.Net.NetworkInformation
 open System.Runtime.InteropServices
+open System.Text
 open System.Threading.Tasks
 open Microsoft.Extensions.Logging
 open Microsoft.Extensions.Localization
@@ -13,8 +15,7 @@ open Microsoft.Extensions.Options
 open Microsoft.FluentUI.AspNetCore.Components
 open Microsoft.JSInterop
 open FSharp.Data
-open System.Net.Http
-open System.Text
+open LiteDB
 
 type Platform =
     | Windows
@@ -81,7 +82,7 @@ type ApiUrlProvider(logger: ILogger<ApiUrlProvider>) =
                 let mutable searchUrl = fallbackUrl // Fallback
 
                 for ipAddress in ips do
-                    let reply = (new Ping()).Send(ipAddress)
+                    let reply = (new Ping()).Send ipAddress
 
                     if reply <> null && reply.RoundtripTime < lastRoundTripTime then
                         lastRoundTripTime <- reply.RoundtripTime
@@ -167,30 +168,38 @@ type IFavoritesDataAccess =
     abstract member FavoritesCount: unit -> int
 
 type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
-    let database (connectionString: string) =
-        new LiteDB.LiteDatabase(connectionString)
+    let mapper = BsonMapper.Global
 
-    let favorites (db: LiteDB.LiteDatabase) = db.GetCollection<Station> "favorites"
+    do mapper.Entity<Station>().Id(fun x -> x.Id) |> ignore
+
+    let database (connectionString: string) =
+        new LiteDatabase(connectionString, mapper)
+
+    let getFavorites (db: LiteDatabase) =
+        let retVal = db.GetCollection<Station> "favorites"
+        retVal.EnsureIndex((fun x -> x.Id), true) |> ignore
+        retVal
 
     interface IFavoritesDataAccess with
         member this.Add(station: Station) =
             use db = database AppSettings.DataBasePath
+            let favorites = getFavorites db
 
-            if not (favorites(db).Exists(fun x -> x.Id = station.Id)) then
+            if not (favorites.Exists(fun x -> x.Id = station.Id)) then
                 station.IsFavorite <- true
-                favorites(db).Insert station |> ignore
-
+                favorites.Insert station |> ignore
 
         member this.Update(stations: Station array) : Task<unit> =
             async {
                 use db = database AppSettings.DataBasePath
+                let favorites = getFavorites db
 
                 stations
                 |> Array.iter (fun station ->
-                    if favorites(db).Exists(fun x -> x.Id = station.Id) then
+                    if favorites.Exists(fun x -> x.Id = station.Id) then
                         station.IsFavorite <- true
 
-                        if not (favorites(db).Update station) then
+                        if not (favorites.Update station) then
                             logger.LogError(
                                 "Failed to update station {0} with id {1} in favorites.",
                                 station.Name,
@@ -202,12 +211,12 @@ type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
 
         member this.Exists(id: Guid) =
             use db = database AppSettings.DataBasePath
-            favorites(db).Exists(fun x -> x.Id = id)
+            getFavorites(db).Exists(fun x -> x.Id = id)
 
         member this.GetFavorites(parameters: GetStationParameters) =
             use db = database AppSettings.DataBasePath
 
-            favorites(db)
+            getFavorites(db)
                 .Query()
                 .Select(fun x -> x)
                 .Limit(parameters.Limit)
@@ -217,19 +226,19 @@ type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
         member this.Remove(id: Guid) =
             use db = database AppSettings.DataBasePath
 
-            if not (favorites(db).Delete(LiteDB.BsonValue id)) then
+            if not (getFavorites(db).Delete(BsonValue id)) then
                 logger.LogError("Failed to remove station with id {0} from favorites.", id)
 
         member this.IsFavorites(ids: Guid array) =
-            let exists (id: Guid, favorites: LiteDB.ILiteCollection<Station>) = favorites.Exists(fun x -> x.Id = id)
+            let exists (id: Guid, favorites: ILiteCollection<Station>) = favorites.Exists(fun x -> x.Id = id)
             use db = database AppSettings.DataBasePath
-            let favorites = favorites (db)
+            let favorites = getFavorites db
 
             ids |> Array.map (fun id -> id, exists (id, favorites)) |> Map.ofArray
 
         member this.FavoritesCount() : int =
             use db = database AppSettings.DataBasePath
-            favorites(db).Count()
+            getFavorites(db).Count()
 
 type IHttpHandler =
     abstract member GetJsonStringAsync: url: string * parameters: list<string * string> -> Async<string>
@@ -252,6 +261,7 @@ type HttpHandler(apiUrlProvider: IApiUrlProvider, logger: ILogger<HttpHandler>) 
                 return!
                     Http.AsyncRequestString(
                         url = $"https://{apiUrlProvider.GetUrl()}/json/{url}",
+                        headers = [ "User-Agent", HttpHandler.UserAgent ],
                         query = parameters,
                         httpMethod = "GET",
                         responseEncodingOverride = "utf-8"
@@ -269,6 +279,8 @@ type HttpHandler(apiUrlProvider: IApiUrlProvider, logger: ILogger<HttpHandler>) 
             | ex -> return writeErrorAndReturnEmptyArray (ex, url, parameters)
         }
 
+    static member UserAgent = "FSharp-RadioBrowser-App/1.0"
+
     interface IHttpHandler with
         member this.GetJsonStringAsync(url: string, parameters: (string * string) list) : Async<string> =
             fetchWithRetry (url, parameters, 3, 1000)
@@ -278,11 +290,14 @@ type IStationsService =
     abstract member GetStationsByVotes: parameters: GetStationParameters -> Async<Station array>
     abstract member GetFavoriteStations: parameters: GetStationParameters -> Async<Station array>
     abstract member GetStations: Guid array -> Async<Station array>
+    abstract member ClickStation: Guid -> unit
+    abstract member VoteStation: Guid -> unit
 
     abstract member SearchStations:
         searchParameters: SearchStationParameters * parameters: GetStationParameters -> Async<Station array>
 
     abstract member Settings: AppSettings
+    abstract member FavoritesDataAccess: IFavoritesDataAccess
 
 type StationsService(handler: IHttpHandler, dataAccess: IFavoritesDataAccess, options: IOptions<AppSettings>) =
     let stations = "stations"
@@ -365,6 +380,14 @@ type StationsService(handler: IHttpHandler, dataAccess: IFavoritesDataAccess, op
                 return getStations jsonString
             }
 
+        member this.FavoritesDataAccess: IFavoritesDataAccess = dataAccess
+
+        member this.ClickStation(uuid: Guid) =
+            handler.GetJsonStringAsync($"url/{uuid}", []) |> Async.Ignore |> Async.Start
+
+        member this.VoteStation(uuid: Guid) =
+            handler.GetJsonStringAsync($"vote/{uuid}", []) |> Async.Ignore |> Async.Start
+
 type IListsService =
     abstract member GetCountries: unit -> Async<CountriesProvider.Country array>
     abstract member GetLanguages: unit -> Async<LanguagesProvider.Language array>
@@ -412,10 +435,11 @@ type ListsService(handler: IHttpHandler) =
 type SharedResources() = class end
 
 type IMetadataService =
-    abstract member GetTitleAsync: string -> Async<string option>
+    abstract member GetTitleAsync: string -> Async<Result<string option, exn>>
 
 type IServices =
     abstract member ToastService: IToastService
+    abstract member StationService: IStationsService
     abstract member DataAccess: IFavoritesDataAccess
     abstract member LinkOpeningService: ILinkOpeningService
     abstract member Localizer: IStringLocalizer<SharedResources>
@@ -425,7 +449,7 @@ type IServices =
 type Services
     (
         toastService: IToastService,
-        dataAccess: IFavoritesDataAccess,
+        stationService: IStationsService,
         linkOpeningService: ILinkOpeningService,
         localizer: IStringLocalizer<SharedResources>,
         metadataService: IMetadataService,
@@ -433,14 +457,15 @@ type Services
     ) =
     interface IServices with
         member this.ToastService = toastService
-        member this.DataAccess: IFavoritesDataAccess = dataAccess
+        member this.DataAccess: IFavoritesDataAccess = stationService.FavoritesDataAccess
+        member this.StationService: IStationsService = stationService
         member this.LinkOpeningService: ILinkOpeningService = linkOpeningService
         member this.Localizer: IStringLocalizer<SharedResources> = localizer
         member this.MetadataService: IMetadataService = metadataService
         member this.JsRuntime: IJSRuntime = jsRuntime
 
 
-type MetadataService(client: HttpClient) =
+type MetadataService(client: HttpClient, options: IOptions<AppSettings>, logger: ILogger<FavoritesDataAccess>) =
 
     let extractStreamTitle (text: string) =
         let prefix = "StreamTitle='"
@@ -450,47 +475,54 @@ type MetadataService(client: HttpClient) =
             let endIdx = text.IndexOf("';", start)
 
             if endIdx > start then
-                Some(text.Substring(start, endIdx - start))
+                Ok(Some(text.Substring(start, endIdx - start)))
             else
-                None
+                Ok None
         else
-            None
+            Ok None
 
     interface IMetadataService with
         member this.GetTitleAsync(url: string) =
             async {
-                use! resp =
-                    client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead)
-                    |> Async.AwaitTask
+                try
+                    if client.Timeout > TimeSpan.FromMilliseconds(float options.Value.GetTitleDelay) then
+                        client.Timeout <- TimeSpan.FromMilliseconds(float options.Value.GetTitleDelay - 100.0)
 
-                resp.EnsureSuccessStatusCode() |> ignore
+                    use! resp =
+                        client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead)
+                        |> Async.AwaitTask
 
-                let metaInt =
-                    match resp.Headers.TryGetValues "icy-metaint" with
-                    | true, values ->
-                        let value = Seq.head values
+                    resp.EnsureSuccessStatusCode() |> ignore
 
-                        match Int32.TryParse value with
-                        | true, v -> v
+                    let metaInt =
+                        match resp.Headers.TryGetValues "icy-metaint" with
+                        | true, values ->
+                            let value = Seq.head values
+
+                            match Int32.TryParse value with
+                            | true, v -> v
+                            | _ -> 0
                         | _ -> 0
-                    | _ -> 0
 
-                if metaInt > 0 then
-                    let buffer = Array.zeroCreate<byte> metaInt
-                    use! stream = resp.Content.ReadAsStreamAsync() |> Async.AwaitTask
-                    let! _ = stream.ReadExactlyAsync(buffer, 0, buffer.Length).AsTask() |> Async.AwaitTask
-                    let lenByte = stream.ReadByte()
-                    let metaLength = lenByte * 16
+                    if metaInt > 0 then
+                        let buffer = Array.zeroCreate<byte> metaInt
+                        use! stream = resp.Content.ReadAsStreamAsync() |> Async.AwaitTask
+                        let! _ = stream.ReadExactlyAsync(buffer, 0, buffer.Length).AsTask() |> Async.AwaitTask
+                        let lenByte = stream.ReadByte()
+                        let metaLength = lenByte * 16
 
-                    if metaLength > 0 then
-                        let metaBuffer = Array.zeroCreate<byte> metaLength
-                        let! metaRead = stream.ReadAsync(metaBuffer, 0, metaLength) |> Async.AwaitTask
+                        if metaLength > 0 then
+                            let metaBuffer = Array.zeroCreate<byte> metaLength
+                            let! metaRead = stream.ReadAsync(metaBuffer, 0, metaLength) |> Async.AwaitTask
 
-                        return
-                            Encoding.UTF8.GetString(metaBuffer, 0, metaRead).TrimEnd('\u0000')
-                            |> extractStreamTitle
+                            return
+                                Encoding.UTF8.GetString(metaBuffer, 0, metaRead).TrimEnd('\u0000')
+                                |> extractStreamTitle
+                        else
+                            return Ok None
                     else
-                        return None
-                else
-                    return None
+                        return Ok None
+                with ex ->
+                    logger.LogError(ex, "Error while getting metadata from {0}", url)
+                    return Error ex
             }

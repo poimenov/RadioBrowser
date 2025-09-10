@@ -58,7 +58,7 @@ let main args =
             new HttpClient(new HttpClientHandler(AllowAutoRedirect = true), disposeHandler = true)
 
         client.DefaultRequestHeaders.Add("Icy-MetaData", "1")
-        client.DefaultRequestHeaders.UserAgent.ParseAdd "FSharp-RadioProxy"
+        client.DefaultRequestHeaders.UserAgent.ParseAdd HttpHandler.UserAgent
         client)
     |> ignore
 

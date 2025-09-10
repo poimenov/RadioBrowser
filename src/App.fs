@@ -638,77 +638,92 @@ let historyPage =
                         localizer["NoHistory"]
                     }
                 else
-                    table {
-                        class' "history-table"
+                    let items =
+                        history.OrderByDescending(fun r -> r.StartTime).AsQueryable<HistoryRecord>()
 
-                        thead {
-                            tr {
-                                th { localizer["Time"] }
-                                th { localizer["Station"] }
-                                th { localizer["Title"] }
-                            }
+                    FluentDataGrid'' {
+                        Items items
+                        AutoFit true
+
+                        PropertyColumn'' {
+                            Title(string (localizer["Time"]))
+
+                            Property(fun (item: HistoryRecord) ->
+                                item.StartTime.ToString("g", CultureInfo.CurrentCulture))
                         }
 
-                        tbody {
-                            for record in history do
-                                tr {
-                                    td { record.StartTime.ToString("g", CultureInfo.CurrentCulture) }
-                                    td { record.StationName }
+                        PropertyColumn'' {
+                            Title(string (localizer["Station"]))
+                            Property(fun (item: HistoryRecord) -> item.StationName)
+                        }
 
-                                    td {
-                                        span {
-                                            class' "link"
+                        TemplateColumn'' {
+                            Title(string (localizer["Title"]))
 
-                                            onclick (fun _ ->
-                                                los.OpenUrl(
-                                                    String.Format(
-                                                        options.Value.TrackSearchUrl,
-                                                        Uri.EscapeDataString record.Title
-                                                    )
-                                                )
+                            ChildContent(fun (item: HistoryRecord) ->
+                                let searchtext = string (localizer["SearchOnYouTube"])
 
+                                span {
+                                    class' "link"
+                                    title' $"{searchtext}: {item.Title}"
+
+                                    onclick (fun _ ->
+                                        los.OpenUrl(
+                                            String.Format(
+                                                options.Value.TrackSearchUrl,
+                                                Uri.EscapeDataString item.Title
                                             )
+                                        ))
 
-                                            record.Title
-                                        }
-                                    }
-                                }
+                                    item.Title
+                                })
                         }
                     }
             })
 
 let rec getTitle (store: IShareStore, metadataService: IMetadataService) =
     task {
-        let SelectedStation = store.SelectedStation.Value
+        try
+            match store.SelectedStation.Value with
+            | NotSelected -> store.Title.Publish None
+            | Selected station ->
+                if store.IsPlaying.Value then
+                    let! result = metadataService.GetTitleAsync station.UrlResolved
 
-        match SelectedStation with
-        | NotSelected -> store.Title.Publish None
-        | Selected station ->
-            if store.IsPlaying.Value then
-                let! titleOpt = metadataService.GetTitleAsync station.UrlResolved
+                    match result with
+                    | Ok titleOpt ->
+                        store.Title.Publish titleOpt
 
-                match titleOpt with
-                | Some title when not (String.IsNullOrWhiteSpace title) ->
-                    store.Title.Publish titleOpt
-                    let history = store.History.Value
+                        match titleOpt with
+                        | None -> ()
+                        | Some title ->
+                            if not (String.IsNullOrWhiteSpace title) then
+                                let history = store.History.Value
 
-                    let record =
-                        { StartTime = DateTime.Now
-                          Title = title
-                          StationName = station.Name }
+                                let record =
+                                    { StartTime = DateTime.Now
+                                      Title = title
+                                      StationName = station.Name }
 
-                    if
-                        history
-                        |> List.exists (fun r -> r.Title = title && r.StationName = station.Name)
-                        |> not
-                    then
-                        store.History.Publish(record :: history |> List.truncate store.HistoryTruncateCount.Value)
+                                if
+                                    history
+                                    |> List.exists (fun r -> r.Title = title && r.StationName = station.Name)
+                                    |> not
+                                then
+                                    store.History.Publish(
+                                        record :: history |> List.truncate store.HistoryTruncateCount.Value
+                                    )
 
-                    do! Task.Delay store.GetTitleDelay.Value
-                    return! getTitle (store, metadataService)
-                | _ -> store.Title.Publish None
-            else
-                store.Title.Publish None
+                    | _ ->
+                        store.IsPlaying.Publish false
+                        store.Title.Publish None
+                else
+                    store.Title.Publish None
+        with ex ->
+            System.Diagnostics.Debug.WriteLine ex
+
+        do! Task.Delay store.GetTitleDelay.Value
+        return! getTitle (store, metadataService)
     }
 
 let player =
@@ -818,14 +833,16 @@ let player =
                         )
 
                         OnClick(fun _ ->
-                            if services.DataAccess.Exists station.Id then
-                                services.DataAccess.Remove station.Id
-                                station.IsFavorite <- false
-                            else
-                                services.DataAccess.Add station
-                                station.IsFavorite <- true
+                            task {
+                                if services.DataAccess.Exists station.Id then
+                                    services.DataAccess.Remove station.Id
+                                    station.IsFavorite <- false
+                                else
+                                    services.DataAccess.Add station
+                                    services.StationService.VoteStation station.Id
 
-                            store.SelectedStationIsFavorite.Publish station.IsFavorite)
+                                store.SelectedStationIsFavorite.Publish station.IsFavorite
+                            })
 
                     }
 
@@ -848,7 +865,13 @@ let player =
                                 Icons.Regular.Size48.PlayCircle() :> Icon
                         )
 
-                        OnClick(fun _ -> task { store.IsPlaying.Publish(not isPlaying) })
+                        OnClick(fun _ ->
+                            task {
+                                if not isPlaying then
+                                    services.StationService.ClickStation station.Id
+
+                                store.IsPlaying.Publish(not isPlaying)
+                            })
                     }
                 }
 
@@ -950,7 +973,7 @@ let appHeader =
             })
 
 let appFooter =
-    html.inject (fun (store: IShareStore, services: IServices, options: IOptions<AppSettings>) ->
+    html.inject (fun (store: IShareStore, services: IServices) ->
         FluentFooter'' {
             FluentAnchor'' {
                 Appearance Appearance.Hypertext
@@ -978,7 +1001,7 @@ let appFooter =
                         match title with
                         | Some t when not (String.IsNullOrWhiteSpace t) ->
                             services.LinkOpeningService.OpenUrl(
-                                String.Format(options.Value.TrackSearchUrl, Uri.EscapeDataString t)
+                                String.Format(services.StationService.Settings.TrackSearchUrl, Uri.EscapeDataString t)
                             )
                         | _ -> ())
 
@@ -1078,166 +1101,163 @@ let routes =
            routeAny homePage |]
 
 let app =
-    html.inject
-        (fun (hook: IComponentHook, store: IShareStore, stationService: IStationsService, services: IServices) ->
-            hook.AddInitializedTask(fun _ ->
-                task {
-                    let update (ids: Guid array) =
-                        async {
-                            let! stations = stationService.GetStations ids
-                            stations |> services.DataAccess.Update |> ignore
-                        }
+    html.inject (fun (hook: IComponentHook, store: IShareStore, services: IServices) ->
+        hook.AddInitializedTask(fun _ ->
+            task {
+                let update (ids: Guid array) =
+                    async {
+                        let! stations = services.StationService.GetStations ids
+                        stations |> services.DataAccess.Update |> ignore
+                    }
 
-                    let favCount = services.DataAccess.FavoritesCount()
-                    let favArrs = new List<Station array>()
-                    let mutable count = 0
+                getTitle (store, services.MetadataService) |> ignore
+                let favCount = services.DataAccess.FavoritesCount()
+                let favArrs = new List<Station array>()
+                let mutable count = 0
 
-                    while count < favCount do
-                        let favs =
-                            services.DataAccess.GetFavorites(getParameters (count, stationService.Settings))
+                while count < favCount do
+                    let favs =
+                        services.DataAccess.GetFavorites(getParameters (count, services.StationService.Settings))
 
-                        favArrs.Add favs
-                        count <- count + favs.Length
+                    favArrs.Add favs
+                    count <- count + favs.Length
 
-                    favArrs
-                    |> Seq.toList
-                    |> List.map (fun arr -> update (arr |> Array.map (fun x -> x.Id)))
-                    |> fun upd -> Async.Parallel(upd, 5) |> Async.Ignore |> Async.Start
+                favArrs
+                |> Seq.toList
+                |> List.map (fun arr -> update (arr |> Array.map (fun x -> x.Id)))
+                |> fun upd -> Async.Parallel(upd, 5) |> Async.Ignore |> Async.Start
+            })
+
+        ErrorBoundary'' {
+            ErrorContent(fun e ->
+                FluentLabel'' {
+                    Color Color.Error
+                    string e
                 })
 
-            ErrorBoundary'' {
-                ErrorContent(fun e ->
-                    FluentLabel'' {
-                        Color Color.Error
-                        string e
-                    })
+            FluentDesignTheme'' { StorageName "theme" }
+            FluentToastProvider'' { MaxToastCount 3 }
 
-                FluentDesignTheme'' { StorageName "theme" }
-                FluentToastProvider'' { MaxToastCount 3 }
+            FluentLayout'' {
+                appHeader
 
-                FluentLayout'' {
-                    appHeader
+                FluentStack'' {
+                    Width "100%"
+                    class' "main"
+                    Orientation Orientation.Horizontal
+                    navmenus
 
-                    FluentStack'' {
-                        Width "100%"
-                        class' "main"
-                        Orientation Orientation.Horizontal
-                        navmenus
+                    FluentBodyContent'' {
+                        class' "body-content"
+                        style { overflowHidden }
 
-                        FluentBodyContent'' {
-                            class' "body-content"
-                            style { overflowHidden }
+                        FluentStack'' {
+                            style' "width:100%;height:100%;"
+                            Orientation Orientation.Vertical
+                            VerticalGap 2
 
-                            FluentStack'' {
-                                style' "width:100%;height:100%;"
-                                Orientation Orientation.Vertical
-                                VerticalGap 2
+                            adapt {
+                                let! selectedStation = store.SelectedStation
+                                let! isPlaying = store.IsPlaying
+                                let! searchMode = store.SearchMode
+                                let! headerTitle = store.HeaderTitle
 
-                                adapt {
-                                    let! selectedStation = store.SelectedStation
-                                    let! isPlaying = store.IsPlaying
-                                    let! searchMode = store.SearchMode
-                                    let! headerTitle = store.HeaderTitle
+                                let audioUrl =
+                                    match selectedStation with
+                                    | NotSelected -> None
+                                    | Selected station -> Some station.UrlResolved
 
-                                    let audioUrl =
-                                        match selectedStation with
-                                        | NotSelected -> None
-                                        | Selected station -> Some station.UrlResolved
+                                services.JsRuntime.InvokeVoidAsync("playAudio", isPlaying, audioUrl) |> ignore
 
-                                    services.JsRuntime.InvokeVoidAsync("playAudio", isPlaying, audioUrl) |> ignore
+                                let getErrorMessage =
+                                    match selectedStation with
+                                    | NotSelected -> ""
+                                    | Selected station ->
+                                        let msg = string (services.Localizer["ErrorLoadingStation"])
+                                        $"{msg}: {station.Name} ({station.UrlResolved})"
 
-                                    let getErrorMessage =
-                                        match selectedStation with
-                                        | NotSelected -> ""
-                                        | Selected station ->
-                                            let msg = string (services.Localizer["ErrorLoadingStation"])
-                                            $"{msg}: {station.Name} ({station.UrlResolved})"
-
-                                    let icon: Icon =
-                                        match searchMode with
-                                        | Search parameters ->
-                                            if parameters.CountryCode.IsSome then
-                                                if
-                                                    parameters.CountryCode.Value = stationService.Settings.CurrentRegion.TwoLetterISORegionName
-                                                then
-                                                    Icons.Regular.Size24.Home()
-                                                else
-                                                    Icons.Regular.Size24.Flag()
-                                            else if parameters.Tag.IsSome then
-                                                Icons.Regular.Size24.Tag()
+                                let icon: Icon =
+                                    match searchMode with
+                                    | Search parameters ->
+                                        if parameters.CountryCode.IsSome then
+                                            if
+                                                parameters.CountryCode.Value = services.StationService.Settings.CurrentRegion.TwoLetterISORegionName
+                                            then
+                                                Icons.Regular.Size24.Home()
                                             else
-                                                Icons.Regular.Size24.Search()
-                                        | Favorites -> Icons.Regular.Size32.Heart()
-                                        | ByVotes -> Icons.Regular.Size24.Vote()
-                                        | ByClicks -> Icons.Regular.Size24.CursorClick()
-                                        | History -> Icons.Regular.Size24.History()
-
-
-                                    FluentStack'' {
-                                        Orientation Orientation.Horizontal
-                                        VerticalAlignment VerticalAlignment.Center
-                                        HorizontalAlignment HorizontalAlignment.Center
-                                        HorizontalGap 4
-                                        style' "height: 30px;"
-
-                                        FluentIcon'' { Value icon }
-
-                                        span {
-                                            style' "font-size: 24px; font-weight: bold;"
-                                            headerTitle
-                                        }
-                                    }
-
-                                    let styleHeight =
-                                        if selectedStation = NotSelected then
-                                            "height: calc(100% - 30px);"
+                                                Icons.Regular.Size24.Flag()
+                                        else if parameters.Tag.IsSome then
+                                            Icons.Regular.Size24.Tag()
                                         else
-                                            "height: calc(100% - 104px);"
+                                            Icons.Regular.Size24.Search()
+                                    | Favorites -> Icons.Regular.Size32.Heart()
+                                    | ByVotes -> Icons.Regular.Size24.Vote()
+                                    | ByClicks -> Icons.Regular.Size24.CursorClick()
+                                    | History -> Icons.Regular.Size24.History()
 
-                                    div {
-                                        class' "content"
-                                        style' styleHeight
 
-                                        routes
+                                FluentStack'' {
+                                    Orientation Orientation.Horizontal
+                                    VerticalAlignment VerticalAlignment.Center
+                                    HorizontalAlignment HorizontalAlignment.Center
+                                    HorizontalGap 4
+                                    style' "height: 30px;"
+
+                                    FluentIcon'' { Value icon }
+
+                                    span {
+                                        style' "font-size: 24px; font-weight: bold;"
+                                        headerTitle
                                     }
-
-                                    if selectedStation <> NotSelected then
-                                        div {
-                                            class' "player-container"
-                                            player
-
-                                            audio {
-                                                id "player"
-                                                style' "display:none;"
-                                                controls
-
-                                                onstalled (fun _ ->
-                                                    task {
-                                                        services.ToastService.ShowError getErrorMessage |> ignore
-                                                        store.IsPlaying.Publish false
-                                                    })
-
-                                                onerror (fun _ ->
-                                                    task {
-                                                        services.ToastService.ShowError getErrorMessage |> ignore
-                                                        store.IsPlaying.Publish false
-                                                    })
-
-                                                onended (fun _ -> store.IsPlaying.Publish false)
-                                                onpause (fun _ -> store.IsPlaying.Publish false)
-
-                                                onplay (fun _ ->
-                                                    task { return! getTitle (store, services.MetadataService) })
-                                            }
-                                        }
                                 }
+
+                                let styleHeight =
+                                    if selectedStation = NotSelected then
+                                        "height: calc(100% - 30px);"
+                                    else
+                                        "height: calc(100% - 104px);"
+
+                                div {
+                                    class' "content"
+                                    style' styleHeight
+
+                                    routes
+                                }
+
+                                if selectedStation <> NotSelected then
+                                    div {
+                                        class' "player-container"
+                                        player
+
+                                        audio {
+                                            id "player"
+                                            style' "display:none;"
+                                            controls
+
+                                            onstalled (fun _ ->
+                                                task {
+                                                    services.ToastService.ShowError getErrorMessage |> ignore
+                                                    store.IsPlaying.Publish false
+                                                })
+
+                                            onerror (fun _ ->
+                                                task {
+                                                    services.ToastService.ShowError getErrorMessage |> ignore
+                                                    store.IsPlaying.Publish false
+                                                })
+
+                                            onended (fun _ -> store.IsPlaying.Publish false)
+                                            onpause (fun _ -> store.IsPlaying.Publish false)
+                                        }
+                                    }
                             }
                         }
                     }
-
-                    appFooter
                 }
-            })
+
+                appFooter
+            }
+        })
 
 type AppComponent() =
     inherit FunBlazorComponent()

@@ -9,6 +9,7 @@ open System.Text.Json.Serialization
 open Microsoft.FluentUI.AspNetCore.Components
 
 type public AppSettings() =
+    let mutable getTitleTimeout = 5000
     static member ApplicationName = "RadioBrowser"
     static member FavIconFileName = "favicon.ico"
     static member DataBaseFileName = $"{AppSettings.ApplicationName}.db"
@@ -41,7 +42,13 @@ type public AppSettings() =
     //bitrate, lastcheckok, lastchecktime, clicktimestamp, clickcount, clicktrend, changetimestamp, random
     member val DefaultOrder = "votes" with get, set
     member val ReverseOrder = true with get, set
-    member val GetTitleDelay = 5000 with get, set
+
+    member this.GetTitleDelay
+        with get () = getTitleTimeout
+        and set value =
+            if value > 5000 then
+                getTitleTimeout <- value
+
     member val HistoryTruncateCount = 100 with get, set
     member val TrackSearchUrl = "https://www.youtube.com/results?search_query={0}" with get, set
 
