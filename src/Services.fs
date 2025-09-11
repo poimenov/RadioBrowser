@@ -6,6 +6,7 @@ open System.Diagnostics
 open System.Net
 open System.Net.Http
 open System.Net.NetworkInformation
+open System.Linq
 open System.Runtime.InteropServices
 open System.Text
 open System.Threading.Tasks
@@ -159,7 +160,7 @@ type StationMapper =
           IsFavorite = isFavorite }
 
 type IFavoritesDataAccess =
-    abstract member GetFavorites: parameters: GetStationParameters -> Station array
+    abstract member GetFavorites: name: string option * parameters: GetStationParameters -> Station array
     abstract member Exists: Guid -> bool
     abstract member Add: station: Station -> unit
     abstract member Update: stations: Station array -> Task<unit>
@@ -208,20 +209,37 @@ type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
             }
             |> Async.StartAsTask
 
-
         member this.Exists(id: Guid) =
             use db = database AppSettings.DataBasePath
             getFavorites(db).Exists(fun x -> x.Id = id)
 
-        member this.GetFavorites(parameters: GetStationParameters) =
+        member this.GetFavorites(name: string option, parameters: GetStationParameters) : Station array =
             use db = database AppSettings.DataBasePath
 
-            getFavorites(db)
-                .Query()
-                .Select(fun x -> x)
-                .Limit(parameters.Limit)
-                .Offset(parameters.Offset)
-                .ToArray()
+            let retVal =
+                match name with
+                | None ->
+                    getFavorites(db)
+                        .FindAll()
+                        .Skip(parameters.Offset)
+                        .Take(parameters.Limit)
+                        .ToArray()
+                | Some name when not (String.IsNullOrWhiteSpace name) ->
+                    getFavorites(db)
+                        .Find(
+                            (fun x -> x.Name.ToLower().StartsWith(name.ToLower())),
+                            parameters.Offset,
+                            parameters.Limit
+                        )
+                        .ToArray()
+                | Some _ ->
+                    getFavorites(db)
+                        .FindAll()
+                        .Skip(parameters.Offset)
+                        .Take(parameters.Limit)
+                        .ToArray()
+
+            retVal
 
         member this.Remove(id: Guid) =
             use db = database AppSettings.DataBasePath
@@ -288,7 +306,7 @@ type HttpHandler(apiUrlProvider: IApiUrlProvider, logger: ILogger<HttpHandler>) 
 type IStationsService =
     abstract member GetStationsByClicks: parameters: GetStationParameters -> Async<Station array>
     abstract member GetStationsByVotes: parameters: GetStationParameters -> Async<Station array>
-    abstract member GetFavoriteStations: parameters: GetStationParameters -> Async<Station array>
+    abstract member GetFavoriteStations: name: string option * parameters: GetStationParameters -> Async<Station array>
     abstract member GetStations: Guid array -> Async<Station array>
     abstract member ClickStation: Guid -> unit
     abstract member VoteStation: Guid -> unit
@@ -368,8 +386,8 @@ type StationsService(handler: IHttpHandler, dataAccess: IFavoritesDataAccess, op
 
         member this.Settings: AppSettings = options.Value
 
-        member this.GetFavoriteStations(parameters: GetStationParameters) =
-            async { return dataAccess.GetFavorites parameters }
+        member this.GetFavoriteStations(name: string option, parameters: GetStationParameters) =
+            async { return dataAccess.GetFavorites(name, parameters) }
 
         member this.GetStations(uuids: Guid array) : Async<Station array> =
             async {
@@ -463,7 +481,6 @@ type Services
         member this.Localizer: IStringLocalizer<SharedResources> = localizer
         member this.MetadataService: IMetadataService = metadataService
         member this.JsRuntime: IJSRuntime = jsRuntime
-
 
 type MetadataService(client: HttpClient, options: IOptions<AppSettings>, logger: ILogger<FavoritesDataAccess>) =
 

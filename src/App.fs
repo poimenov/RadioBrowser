@@ -37,7 +37,7 @@ type SelectedStation =
 
 type CurrentSearchMode =
     | Search of SearchStationParameters
-    | Favorites
+    | Favorites of string option
     | ByVotes
     | ByClicks
     | History
@@ -101,7 +101,7 @@ type AppCallbacks(store: IShareStore, stationsService: IStationsService, window:
                 match store.SearchMode.Value with
                 | ByVotes -> stationsService.GetStationsByVotes parameters
                 | ByClicks -> stationsService.GetStationsByClicks parameters
-                | Favorites -> stationsService.GetFavoriteStations parameters
+                | Favorites name -> stationsService.GetFavoriteStations(name, parameters)
                 | Search ssp -> stationsService.SearchStations(ssp, parameters)
                 | _ -> Task.FromResult(Enumerable.Empty<Station>().ToArray()) |> Async.AwaitTask
 
@@ -253,88 +253,58 @@ let stationsByCountry (countryCode: string) =
              stationsService: IStationsService,
              localizer: IStringLocalizer<SharedResources>,
              hook: IComponentHook) ->
-            let getStationsByCountryCode (code: string) =
+            let getStationsByCountryCode (name: string option, code: string) =
                 async {
-                    let searchParams = SearchStationParameters(None, None, Some code, None, None)
+                    let searchParams = SearchStationParameters(name, None, Some code, None, None)
                     store.SearchMode.Publish(Search searchParams)
                     let parameters = getParameters (0, stationsService.Settings)
-                    return! stationsService.SearchStations(searchParams, parameters)
+
+                    return!
+                        stationsService.SearchStations(searchParams, parameters)
+                        |> Async.StartAsTask
+                        |> Async.AwaitTask
                 }
 
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
-                    let! stations = getStationsByCountryCode countryCode
+                    let! stations = getStationsByCountryCode (None, countryCode)
                     store.Stations.Publish stations
                     let regionInfo = RegionInfo countryCode
                     store.HeaderTitle.Publish $"""{localizer["StationsByCountry"]}: {regionInfo.EnglishName}"""
                 })
 
-            fragment {
-                adapt {
-                    let! searchString, setSearchString = cval("").WithSetter()
+            adapt {
+                let! searchString, setSearchString = cval("").WithSetter()
 
-                    let searchEnabled (str: string) =
-                        str.Trim().Length > 2 && str.Trim().Length < 36
+                let searchEnabled (str: string) =
+                    let s = str.Trim()
+                    s.Length > 2 && s.Length < 36
 
-                    let filterStations (name: string) =
-                        async {
-                            let searchParams =
-                                SearchStationParameters(Some name, Some false, Some countryCode, None, None)
+                div {
+                    style' "margin:10px;"
 
-                            store.SearchMode.Publish(Search searchParams)
-                            let parameters = getParameters (0, stationsService.Settings)
-                            return! stationsService.SearchStations(searchParams, parameters)
-                        }
+                    FluentSearch'' {
+                        style' "width: 400px;"
+                        title' (string (localizer["StationNamePlaceholder"]))
+                        Placeholder(string (localizer["StationNamePlaceholder"]))
+                        Value searchString
 
-                    let getStations (str: string) =
-                        async {
-                            if searchEnabled str then
-                                return! filterStations searchString
-                            else
-                                return! getStationsByCountryCode countryCode
-                        }
+                        ValueChanged(fun s ->
+                            task {
+                                setSearchString s
 
-                    div {
-                        style' "margin:10px;"
+                                let! stations =
+                                    if searchEnabled s then
+                                        getStationsByCountryCode (Some s, countryCode)
+                                    else
+                                        getStationsByCountryCode (None, countryCode)
 
-                        FluentStack'' {
-                            Orientation Orientation.Horizontal
-                            VerticalAlignment VerticalAlignment.Center
-
-                            FluentTextField'' {
-                                Label(string (localizer["FilterStations"]))
-                                Placeholder(string (localizer["StationNamePlaceholder"]))
-                                style' "width:250px;"
-                                Immediate true
-                                minlength 3
-                                maxlength 35
-
-                                onkeydown (fun e ->
-                                    task {
-                                        if e.Key = "Enter" then
-                                            let! stations = getStations searchString
-                                            store.Stations.Publish stations
-                                    })
-
-                                Value searchString
-                                ValueChanged(fun s -> setSearchString s)
-                            }
-
-                            FluentButton'' {
-                                IconStart(Icons.Regular.Size20.Search())
-                                Title "Search"
-
-                                OnClick(fun _ ->
-                                    task {
-                                        let! stations = getStations searchString
-                                        store.Stations.Publish stations
-                                    })
-                            }
-                        }
+                                store.Stations.Publish stations
+                            })
                     }
-
-                    stationsList (store, localizer)
                 }
+
+                stationsList (store, localizer)
             })
 
 let stationsByTag (tag: string) =
@@ -573,16 +543,50 @@ let favoriteStations =
              stationsService: IStationsService,
              localizer: IStringLocalizer<SharedResources>,
              hook: IComponentHook) ->
+
+            let getFavorites (name: string option) =
+                async {
+                    store.SearchMode.Publish(Favorites name)
+                    let parameters = getParameters (0, stationsService.Settings)
+                    return! stationsService.GetFavoriteStations(name, parameters)
+                }
+
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
-                    store.SearchMode.Publish Favorites
                     store.HeaderTitle.Publish localizer["Favorites"]
-                    let parameters = getParameters (0, stationsService.Settings)
-                    let! stations = stationsService.GetFavoriteStations parameters
+                    let! stations = getFavorites None
                     store.Stations.Publish stations
                 })
 
-            stationsList (store, localizer))
+            adapt {
+                let! searchString, setSearchString = cval("").WithSetter()
+
+                div {
+                    style' "margin:10px;"
+
+                    FluentSearch'' {
+                        style' "width: 400px;"
+                        title' (string (localizer["FilterStations"]))
+                        Placeholder(string (localizer["StationName"]))
+                        Value searchString
+
+                        ValueChanged(fun s ->
+                            task {
+                                setSearchString s
+
+                                let! stations =
+                                    if String.IsNullOrWhiteSpace s then
+                                        getFavorites None
+                                    else
+                                        getFavorites (Some s)
+
+                                store.Stations.Publish stations
+                            })
+                    }
+                }
+
+                stationsList (store, localizer)
+            })
 
 let stationsByVotes =
     html.inject
@@ -1117,7 +1121,10 @@ let app =
 
                 while count < favCount do
                     let favs =
-                        services.DataAccess.GetFavorites(getParameters (count, services.StationService.Settings))
+                        services.DataAccess.GetFavorites(
+                            None,
+                            getParameters (count, services.StationService.Settings)
+                        )
 
                     favArrs.Add favs
                     count <- count + favs.Length
@@ -1190,7 +1197,7 @@ let app =
                                             Icons.Regular.Size24.Tag()
                                         else
                                             Icons.Regular.Size24.Search()
-                                    | Favorites -> Icons.Regular.Size32.Heart()
+                                    | Favorites _ -> Icons.Regular.Size32.Heart()
                                     | ByVotes -> Icons.Regular.Size24.Vote()
                                     | ByClicks -> Icons.Regular.Size24.CursorClick()
                                     | History -> Icons.Regular.Size24.History()

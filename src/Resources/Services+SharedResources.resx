@@ -72,11 +72,11 @@
     <data name="NoTagsFound" xml:space="preserve">
         <value>No Tags Found</value>
     </data>     
-    <data name="FilterStations" xml:space="preserve">
-        <value>Filter Stations</value>
+    <data name="StationName" xml:space="preserve">
+        <value>Station Name starts with</value>
     </data>         
     <data name="StationNamePlaceholder" xml:space="preserve">
-        <value>Station Name (min 3 chars)</value>
+        <value>Station Name contains (min 3 chars)</value>
     </data> 
     <data name="ErrorLoadingStation" xml:space="preserve">
         <value>Error loading station</value>

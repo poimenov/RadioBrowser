@@ -72,11 +72,11 @@
     <data name="NoTagsFound" xml:space="preserve">
         <value>Тег не найден</value>
     </data>     
-    <data name="FilterStations" xml:space="preserve">
-        <value>Фильтр Станций</value>
+    <data name="StationName" xml:space="preserve">
+        <value>Название Станции начинается на</value>
     </data>         
     <data name="StationNamePlaceholder" xml:space="preserve">
-        <value>Название Станции (мин 3 символа)</value>
+        <value>Название Станции содержит (мин 3 символа)</value>
     </data>   
     <data name="ErrorLoadingStation" xml:space="preserve">
         <value>Ошибка загрузки станции</value>
