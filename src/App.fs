@@ -509,18 +509,8 @@ let tagsPage =
                                     let rColor = getColor ()
                                     let invertedColor = invertColor rColor
                                     let rSize = calculateFontSize minCount maxCount tag.Stationcount
-                                    let fSize = Math.Round(rSize) |> int
-                                    let paddingSize = (if rSize > 25.0 then Math.Round(rSize / 5.0) else 0.0) |> int
+                                    let fSize = Math.Round rSize |> int
                                     let heightSize = rSize + 2.0 * Math.Round(rSize / 5.0) |> int
-
-                                    let allStyle =
-                                        $"font-size:{fSize}px;color:{colorToRGBString invertedColor};background-color:{colorToRGBString rColor};"
-
-                                    let style =
-                                        if rSize > 25.0 then
-                                            $"height:{heightSize}px;padding-top:{paddingSize}px;"
-                                        else
-                                            ""
 
                                     a {
                                         class' "tag-item"
@@ -528,9 +518,15 @@ let tagsPage =
                                         title'
                                             $"""{tag.Name.ToUpper()} ({localizer["StationsCount"]}: {tag.Stationcount})"""
 
-                                        style' $"{allStyle}{style}"
+                                        style'
+                                            $"font-size:{fSize}px;color:{colorToRGBString invertedColor};background-color:{colorToRGBString rColor};"
+
                                         href $"/stationsByTag/{tag.Name}"
-                                        tag.Name
+
+                                        span {
+                                            style' $"height:{heightSize}px;"
+                                            tag.Name.ToUpper()
+                                        }
                                     }
                             }
                 }
