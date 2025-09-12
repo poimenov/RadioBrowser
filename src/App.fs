@@ -792,8 +792,10 @@ let rec getTitle (store: IShareStore, metadataService: IMetadataService) =
 
                                 if
                                     history
-                                    |> List.exists (fun r -> r.Title = title && r.StationName = station.Name)
-                                    |> not
+                                    |> List.tryHead
+                                    |> function
+                                        | Some r -> r.Title <> title || r.StationName <> station.Name
+                                        | None -> true
                                 then
                                     store.History.Publish(
                                         record :: history |> List.truncate store.HistoryTruncateCount.Value
