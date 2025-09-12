@@ -9,6 +9,7 @@ open System.Net.NetworkInformation
 open System.Linq
 open System.Runtime.InteropServices
 open System.Text
+open System.Text.RegularExpressions
 open System.Threading.Tasks
 open Microsoft.Extensions.Logging
 open Microsoft.Extensions.Localization
@@ -485,18 +486,61 @@ type Services
 type MetadataService(client: HttpClient, options: IOptions<AppSettings>, logger: ILogger<FavoritesDataAccess>) =
 
     let extractStreamTitle (text: string) =
-        let prefix = "StreamTitle='"
+        let m = Regex.Match(text, "StreamTitle='([^']*)'")
 
-        if text.Contains prefix then
-            let start = text.IndexOf prefix + prefix.Length
-            let endIdx = text.IndexOf("';", start)
-
-            if endIdx > start then
-                Ok(Some(text.Substring(start, endIdx - start)))
+        let trimLastDelimeter (s: string) =
+            if s.EndsWith("-") then
+                s.Substring(0, s.Length - 1).Trim()
             else
-                Ok None
-        else
+                s
+
+        if not m.Success then
             Ok None
+        else
+            let raw = m.Groups.[1].Value.Trim()
+            // We check if the string contains attributes of the type key="value"
+            let attrRegex = Regex "(\\w+)=\"([^\"]*)\""
+            let matches = attrRegex.Matches(raw)
+
+            if matches.Count = 0 then
+                // A common case Artist - Track
+                let title = trimLastDelimeter raw
+
+                if String.IsNullOrWhiteSpace title then
+                    Ok None
+                else
+                    Ok(Some title)
+            else
+                // select the "left part" (artist/title up to the first key="value")
+                let firstAttrIndex = raw.IndexOf(matches.[0].Value)
+
+                let mainTitle =
+                    if firstAttrIndex > 0 then
+                        trimLastDelimeter (raw.Substring(0, firstAttrIndex).Trim())
+                    else
+                        ""
+
+                let attrs =
+                    matches
+                    |> Seq.cast<Match>
+                    |> Seq.map (fun m -> m.Groups.[1].Value, m.Groups.[2].Value)
+                    |> Map.ofSeq
+
+                let title =
+                    if attrs.ContainsKey "text" then
+                        let t = attrs.["text"]
+
+                        if String.IsNullOrWhiteSpace mainTitle then
+                            t
+                        else
+                            $"{mainTitle} - {t}"
+                    else
+                        mainTitle
+
+                if String.IsNullOrWhiteSpace title then
+                    Ok None
+                else
+                    Ok(Some title)
 
     interface IMetadataService with
         member this.GetTitleAsync(url: string) =
