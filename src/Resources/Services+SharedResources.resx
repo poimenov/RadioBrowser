@@ -102,4 +102,7 @@
     <data name="SearchOnYouTube" xml:space="preserve">
         <value>Search on YouTube</value>
     </data>
+    <data name="OpenHistoryInBrowser" xml:space="preserve">
+        <value>Open History In Browser</value>
+    </data>
 </root>

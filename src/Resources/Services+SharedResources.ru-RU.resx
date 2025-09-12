@@ -101,5 +101,8 @@
     </data>    
     <data name="SearchOnYouTube" xml:space="preserve">
         <value>Искать на YouTube</value>
+    </data>  
+    <data name="OpenHistoryInBrowser" xml:space="preserve">
+        <value>Открыть историю в браузере</value>
     </data>    
 </root>

@@ -496,7 +496,7 @@ type MetadataService(client: HttpClient, options: IOptions<AppSettings>, logger:
             let raw = m.Groups.[1].Value.Trim()
             // We check if the string contains attributes of the type key="value"
             let attrRegex = Regex "(\\w+)=\"([^\"]*)\""
-            let matches = attrRegex.Matches(raw)
+            let matches = attrRegex.Matches raw
 
             if matches.Count = 0 then
                 // A common case Artist - Track
