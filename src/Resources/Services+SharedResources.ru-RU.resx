@@ -73,7 +73,7 @@
         <value>Тег не найден</value>
     </data>     
     <data name="StationName" xml:space="preserve">
-        <value>Название Станции начинается на</value>
+        <value>Название Станции содержит</value>
     </data>         
     <data name="StationNamePlaceholder" xml:space="preserve">
         <value>Название Станции содержит (мин 3 символа)</value>

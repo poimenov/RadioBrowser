@@ -73,7 +73,7 @@
         <value>No Tags Found</value>
     </data>     
     <data name="StationName" xml:space="preserve">
-        <value>Station Name starts with</value>
+        <value>Station Name contains</value>
     </data>         
     <data name="StationNamePlaceholder" xml:space="preserve">
         <value>Station Name contains (min 3 chars)</value>

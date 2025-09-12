@@ -227,11 +227,7 @@ type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
                         .ToArray()
                 | Some name when not (String.IsNullOrWhiteSpace name) ->
                     getFavorites(db)
-                        .Find(
-                            (fun x -> x.Name.ToLower().StartsWith(name.ToLower())),
-                            parameters.Offset,
-                            parameters.Limit
-                        )
+                        .Find((fun x -> x.Name.ToLower().Contains(name.ToLower())), parameters.Offset, parameters.Limit)
                         .ToArray()
                 | Some _ ->
                     getFavorites(db)
