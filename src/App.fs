@@ -767,13 +767,13 @@ let historyPage =
         })
 
 let rec getTitle (store: IShareStore, metadataService: IMetadataService) =
-    task {
+    async {
         try
             match store.SelectedStation.Value with
             | NotSelected -> store.Title.Publish None
             | Selected station ->
                 if store.IsPlaying.Value then
-                    let! result = metadataService.GetTitleAsync station.UrlResolved
+                    let! result = station.UrlResolved |> metadataService.GetTitleAsync
 
                     match result with
                     | Ok titleOpt ->
@@ -805,9 +805,9 @@ let rec getTitle (store: IShareStore, metadataService: IMetadataService) =
                 else
                     store.Title.Publish None
         with ex ->
-            System.Diagnostics.Debug.WriteLine ex
+            store.Title.Publish None
 
-        do! Task.Delay store.GetTitleDelay.Value
+        do! store.GetTitleDelay.Value |> Async.Sleep
         return! getTitle (store, metadataService)
     }
 
@@ -1195,7 +1195,7 @@ let app =
                         stations |> services.DataAccess.Update |> ignore
                     }
 
-                getTitle (store, services.MetadataService) |> ignore
+                getTitle (store, services.MetadataService) |> Async.Start
                 let favCount = services.DataAccess.FavoritesCount()
                 let favArrs = new List<Station array>()
                 let mutable count = 0
