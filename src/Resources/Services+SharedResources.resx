@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <root>
     <data name="GitHub" xml:space="preserve">
-        <value>FeedViewer Source On GitHub</value>
+        <value>Source Code On GitHub</value>
     </data>          
     <data name="SwitchTheme" xml:space="preserve">
         <value>Switch Theme</value>
