@@ -25,7 +25,7 @@ A lightweight, cross-platform desktop radio player built with F# and .NET 8.0. D
 *   **[Photino.Blazor](https://github.com/tryphotino/photino.Blazor)**: A lightweight native window to host the Blazor UI.
 *   **[Fun.Blazor](https://github.com/slaveOftime/Fun.Blazor)**: A famous F#-first DSL for building Blazor UI components.
 *   **[fluentui-blazor](https://github.com/microsoft/fluentui-blazor)**: Microsoft's official Fluent UI Blazor components for a modern design.
-*   **[LiteDB](https://www.litedb.org/)**: A serverless, embedded .NET NoSQL database for storing favorites and history.
+*   **[LiteDB](https://www.litedb.org/)**: A serverless, embedded .NET NoSQL database for storing favorites.
 
 ### Installation
 
