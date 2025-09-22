@@ -104,5 +104,11 @@
     </data>  
     <data name="OpenHistoryInBrowser" xml:space="preserve">
         <value>Открыть историю в браузере</value>
-    </data>    
+    </data>  
+    <data name="Fail" xml:space="preserve">
+        <value>Возникла такая ошибка</value>
+    </data>  
+    <data name="StationsNotFound" xml:space="preserve">
+        <value>Не найдены станции</value>
+    </data>          
 </root>

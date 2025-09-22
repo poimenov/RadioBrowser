@@ -46,12 +46,18 @@ type CurrentSearchMode =
     | ByClicks
     | History
 
+type LoadingState<'T> =
+    | Loaded of 'T
+    | Loading of 'T
+    | Failed of ('T * string)
+    | EndOfList of 'T
+
 type IShareStore with
     member store.IsMenuOpen = store.CreateCVal(nameof store.IsMenuOpen, true)
     member store.Theme = store.CreateCVal(nameof store.Theme, DesignThemeModes.Light)
 
     member store.Stations =
-        store.CreateCVal(nameof store.Stations, Enumerable.Empty<Station>())
+        store.CreateCVal(nameof store.Stations, Loaded(Enumerable.Empty<Station>()))
 
     member store.SelectedStation =
         store.CreateCVal(nameof store.SelectedStation, NotSelected)
@@ -60,10 +66,10 @@ type IShareStore with
         store.CreateCVal(nameof store.SelectedStationIsFavorite, false)
 
     member store.Countries =
-        store.CreateCVal(nameof store.Countries, Array.Empty<CountriesProvider.Country>())
+        store.CreateCVal(nameof store.Countries, Loaded(Array.Empty<CountriesProvider.Country>()))
 
     member store.Tags =
-        store.CreateCVal(nameof store.Tags, Array.Empty<NameAndCountProvider.NameAndCount>())
+        store.CreateCVal(nameof store.Tags, Loaded(Array.Empty<NameAndCountProvider.NameAndCount>()))
 
     member store.Volume = store.CreateCVal(nameof store.Volume, 0.5)
 
@@ -79,10 +85,49 @@ type IShareStore with
     member store.HistoryTruncateCount =
         store.CreateCVal(nameof store.HistoryTruncateCount, 100)
 
+let emptyStations = Enumerable.Empty<Station>()
+
+let publishStationsResult
+    (store: IShareStore, stationsResult: Result<Station array, string>, stations: IEnumerable<Station>)
+    =
+    match stationsResult with
+    | Error m -> store.Stations.Publish(Failed(stations, m))
+    | Ok newStations ->
+        if newStations.Length > 0 then
+            store.Stations.Publish(Loaded(stations.Concat newStations))
+        else
+            store.Stations.Publish(EndOfList stations)
+
+let loadingState (localizer: IStringLocalizer<SharedResources>) =
+    div {
+        style' "margin:auto;width:100px;"
+
+        div { localizer["IsLoading"] }
+
+        FluentProgressRing''
+    }
+
 let getParameters (offset: int, settings: AppSettings) =
     GetStationParameters(offset, settings.LimitCount, settings.HideBroken)
 
 type AppCallbacks(store: IShareStore, stationsService: IStationsService, window: Photino.NET.PhotinoWindow) =
+    let nextLoad (stations: IEnumerable<Station>) =
+        async {
+            let parameters = getParameters (stations.Count(), stationsService.Settings)
+
+            store.Stations.Publish(Loading stations)
+
+            let! stationsResult =
+                match store.SearchMode.Value with
+                | ByVotes -> stationsService.GetStationsByVotes parameters
+                | ByClicks -> stationsService.GetStationsByClicks parameters
+                | Favorites name -> stationsService.GetFavoriteStations(name, parameters)
+                | Search ssp -> stationsService.SearchStations(ssp, parameters)
+                | _ -> async { return Ok(Enumerable.Empty<Station>().ToArray()) }
+
+            publishStationsResult (store, stationsResult, stations)
+        }
+
     [<JSInvokable>]
     member _.OnWindowResize(width: int, height: int) =
         task {
@@ -98,20 +143,11 @@ type AppCallbacks(store: IShareStore, stationsService: IStationsService, window:
     [<JSInvokable>]
     member _.OnElementVisible() =
         task {
-            let parameters =
-                getParameters (store.Stations.Value.Count(), stationsService.Settings)
-
-            let! newStations =
-                match store.SearchMode.Value with
-                | ByVotes -> stationsService.GetStationsByVotes parameters
-                | ByClicks -> stationsService.GetStationsByClicks parameters
-                | Favorites name -> stationsService.GetFavoriteStations(name, parameters)
-                | Search ssp -> stationsService.SearchStations(ssp, parameters)
-                | _ -> Task.FromResult(Enumerable.Empty<Station>().ToArray()) |> Async.AwaitTask
-
-            if newStations.Count() > 0 then
-                let stations = store.Stations.Value.Concat newStations
-                store.Stations.Publish stations
+            match store.Stations.Value with
+            | Loading _ -> ()
+            | EndOfList _ -> ()
+            | Loaded stations -> nextLoad stations |> Async.Start
+            | Failed(stations, m) -> nextLoad stations |> Async.Start
         }
 
 let watchElementVisibleComponent =
@@ -131,7 +167,19 @@ let watchElementVisibleComponent =
                     jsRuntime.InvokeVoidAsync("setCallbacks", elementId, dotNetRef) |> ignore
                 })
 
-            div { id elementId })
+            div {
+                style' "margin:auto;width:50px;"
+
+                adapt {
+                    let! stationsState = store.Stations
+
+                    match stationsState with
+                    | Loading _ -> FluentProgressRing'' { style' "margin-top:5px;margin-bottom:5px;" }
+                    | _ -> ()
+                }
+
+                div { id elementId }
+            })
 
 let stationIcon (iconUrl: string) =
     let defaultImageSrc = "./images/radio.svg"
@@ -198,8 +246,7 @@ let stationsList (store: IShareStore, localizer: IStringLocalizer<SharedResource
         style' "padding:10px;"
 
         adapt {
-
-            let! stations = store.Stations
+            let! stationsState = store.Stations
             let! selectedStation = store.SelectedStation
             let! selectedStationIsFavorite = store.SelectedStationIsFavorite
 
@@ -223,30 +270,51 @@ let stationsList (store: IShareStore, localizer: IStringLocalizer<SharedResource
                     else
                         curr.IsFavorite
 
-            if stations.Any() then
-                div {
-                    class' "stations-list"
+            let renderStationsList (stations: IEnumerable<Station>) =
+                fragment {
+                    div {
+                        class' "stations-list"
 
-                    for station in stations.ToArray() do
-                        div {
-                            class' (getSelectedClass station)
+                        for station in stations.ToArray() do
+                            div {
+                                class' (getSelectedClass station)
 
-                            onclick (fun _ ->
-                                let selected = Selected station
-                                store.SelectedStationIsFavorite.Publish station.IsFavorite
-                                store.SelectedStation.Publish selected)
+                                onclick (fun _ ->
+                                    let selected = Selected station
+                                    store.SelectedStationIsFavorite.Publish station.IsFavorite
+                                    store.SelectedStation.Publish selected)
 
-                            stationItem (station, isFavorite station)
-                        }
+                                stationItem (station, isFavorite station)
+                            }
+                    }
 
                     watchElementVisibleComponent
                 }
-            else
-                div {
-                    style' "text-align:center;"
 
-                    localizer["IsLoading"]
-                }
+            match stationsState with
+            | Loading stations ->
+                if stations.Any() then
+                    renderStationsList stations
+                else
+                    loadingState localizer
+            | Failed(stations, m) ->
+                if stations.Any() then
+                    renderStationsList stations
+                else
+                    div {
+                        style' "text-align:center;color:red;"
+                        string (localizer["Fail"]) + ": " + m
+                    }
+            | Loaded stations ->
+                if stations.Any() then
+                    renderStationsList stations
+                else
+                    div {
+                        style' "text-align:center;"
+
+                        localizer["StationsNotFound"]
+                    }
+            | EndOfList stations -> renderStationsList stations
         }
     }
 
@@ -259,6 +327,7 @@ let stationsByCountry (countryCode: string) =
              hook: IComponentHook) ->
             let getStationsByCountryCode (name: string option, code: string) =
                 async {
+                    store.Stations.Publish(Loading emptyStations)
                     let searchParams = SearchStationParameters(name, None, Some code, None, None)
                     store.SearchMode.Publish(Search searchParams)
                     let parameters = getParameters (0, stationsService.Settings)
@@ -271,10 +340,10 @@ let stationsByCountry (countryCode: string) =
 
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
-                    let! stations = getStationsByCountryCode (None, countryCode)
-                    store.Stations.Publish stations
                     let regionInfo = RegionInfo countryCode
                     store.HeaderTitle.Publish $"""{localizer["StationsByCountry"]}: {regionInfo.EnglishName}"""
+                    let! stationsResult = getStationsByCountryCode (None, countryCode)
+                    publishStationsResult (store, stationsResult, emptyStations)
                 })
 
             adapt {
@@ -297,13 +366,13 @@ let stationsByCountry (countryCode: string) =
                             task {
                                 setSearchString s
 
-                                let! stations =
+                                let! stationsResult =
                                     if searchEnabled s then
                                         getStationsByCountryCode (Some s, countryCode)
                                     else
                                         getStationsByCountryCode (None, countryCode)
 
-                                store.Stations.Publish stations
+                                publishStationsResult (store, stationsResult, emptyStations)
                             })
                     }
                 }
@@ -320,12 +389,13 @@ let stationsByTag (tag: string) =
              hook: IComponentHook) ->
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
+                    store.Stations.Publish(Loading emptyStations)
                     let searchParams = SearchStationParameters(None, None, None, Some tag, Some true)
                     store.SearchMode.Publish(Search searchParams)
                     store.HeaderTitle.Publish $"""{localizer["StationsByTag"]}: {tag}"""
                     let parameters = getParameters (0, stationsService.Settings)
-                    let! stations = stationsService.SearchStations(searchParams, parameters)
-                    store.Stations.Publish stations
+                    let! stationsResult = stationsService.SearchStations(searchParams, parameters)
+                    publishStationsResult (store, stationsResult, emptyStations)
                 })
 
             stationsList (store, localizer))
@@ -347,31 +417,41 @@ let countriesPage =
                 task {
                     store.HeaderTitle.Publish localizer["Countries"]
 
-                    if not (store.Countries.Value.Any()) then
-                        let! countries = listsService.GetCountries()
-                        store.Countries.Publish countries
+                    match store.Countries.Value with
+                    | Loaded countries ->
+                        if not (countries.Any()) then
+                            store.Countries.Publish(Loading countries)
+                            let! result = listsService.GetCountries()
+
+                            match result with
+                            | Ok retVal -> store.Countries.Publish(Loaded retVal)
+                            | Error m -> store.Countries.Publish(Failed(countries, m))
+                    | _ -> ()
+
                 })
 
             fragment {
                 adapt {
-                    let! countries, setCountries = store.Countries.WithSetter()
+                    let! countriesState, setCountries = store.Countries.WithSetter()
                     let! searchString, setSearchString = cval("").WithSetter()
 
-                    let filteredCountries =
-                        if String.IsNullOrWhiteSpace searchString then
-                            countries |> Array.distinctBy (fun c -> c.Name)
-                        else
-                            countries
-                            |> Array.filter (fun c -> c.Name.ToLower().Contains(searchString.ToLower()))
-                            |> Array.distinctBy (fun c -> c.Name)
-
-
-                    if countries.Length = 0 then
+                    match countriesState with
+                    | Loading _ -> loadingState localizer
+                    | Failed(countries, m) ->
                         div {
-                            style' "text-align:center;"
-                            localizer["IsLoading"]
+                            style' "text-align:center;color:red;"
+                            string (localizer["Fail"]) + ": " + m
                         }
-                    else
+                    | EndOfList countries
+                    | Loaded countries ->
+                        let filteredCountries =
+                            if String.IsNullOrWhiteSpace searchString then
+                                countries |> Array.distinctBy (fun c -> c.Name)
+                            else
+                                countries
+                                |> Array.filter (fun c -> c.Name.ToLower().Contains(searchString.ToLower()))
+                                |> Array.distinctBy (fun c -> c.Name)
+
                         div {
                             style' "margin:10px;"
 
@@ -414,6 +494,7 @@ let countriesPage =
                                         }
                                     }
                             }
+
                 }
             })
 
@@ -428,111 +509,127 @@ let tagsPage =
                 task {
                     store.HeaderTitle.Publish localizer["Tags"]
 
-                    if not (store.Tags.Value.Any()) then
-                        let! tags = listsService.GetTags()
-                        store.Tags.Publish tags
+                    match store.Tags.Value with
+                    | Loaded tags ->
+                        if not (tags.Any()) then
+                            store.Tags.Publish(Loading tags)
+                            let! result = listsService.GetTags()
+
+                            match result with
+                            | Ok retVal -> store.Tags.Publish(Loaded retVal)
+                            | Error m -> store.Tags.Publish(Failed(tags, m))
+                    | _ -> ()
                 })
 
             fragment {
                 adapt {
-                    let! tags, setTags = store.Tags.WithSetter()
+                    let! tagsState, setTags = store.Tags.WithSetter()
                     let! searchString, setSearchString = cval("").WithSetter()
 
-                    let arrangeTags (arr: NameAndCountProvider.NameAndCount[]) =
-                        let ind = arr |> Array.mapi (fun i t -> (i, t))
-
-                        let odds =
-                            ind
-                            |> Array.filter (fun (i, _) -> i % 2 = 1)
-                            |> Array.map (fun (_, t) -> t)
-                            |> Array.rev
-
-                        let ev =
-                            ind |> Array.filter (fun (i, _) -> i % 2 = 0) |> Array.map (fun (_, t) -> t)
-
-                        Array.append odds ev
-
-                    let filteredTags =
-                        if String.IsNullOrWhiteSpace searchString then
-                            arrangeTags tags
-                        else
-                            tags
-                            |> Array.filter (fun t -> t.Name.ToLower().Contains(searchString.ToLower()))
-                            |> arrangeTags
-
-                    let getColor () =
-                        let r = Random().Next(150, 255)
-                        let g = Random().Next(150, 255)
-                        let b = Random().Next(150, 255)
-                        r, g, b
-
-                    let invertColor (rgb: int * int * int) =
-                        rgb |> fun (r, g, b) -> 255 - r, 255 - g, 255 - b
-
-                    let colorToRGBString (rgb: int * int * int) =
-                        rgb |> fun (r, g, b) -> $"rgb({r},{g},{b})"
-
-
-                    let calculateFontSize (minCount: int) (maxCount: int) (count: int) =
-                        let minSize = 10.0
-                        let maxSize = 64.0
-
-                        minSize
-                        + (maxSize - minSize) * float (count - minCount) / float (maxCount - minCount)
-
-                    if tags.Length = 0 then
+                    match tagsState with
+                    | Loading _ -> loadingState localizer
+                    | Failed(tags, m) ->
                         div {
-                            style' "text-align:center;"
-                            localizer["IsLoading"]
+                            style' "text-align:center;color:red;"
+                            string (localizer["Fail"]) + ": " + m
                         }
-                    else
-                        div {
-                            style' "margin:10px;"
+                    | EndOfList tags
+                    | Loaded tags ->
+                        let arrangeTags (arr: NameAndCountProvider.NameAndCount[]) =
+                            let ind = arr |> Array.mapi (fun i t -> (i, t))
 
-                            FluentSearch'' {
-                                Placeholder(string (localizer["TagName"]))
-                                Immediate true
-                                Value searchString
-                                ValueChanged(fun s -> setSearchString s)
-                            }
-                        }
+                            let odds =
+                                ind
+                                |> Array.filter (fun (i, _) -> i % 2 = 1)
+                                |> Array.map (fun (_, t) -> t)
+                                |> Array.rev
 
-                        if filteredTags.Length = 0 then
+                            let ev =
+                                ind |> Array.filter (fun (i, _) -> i % 2 = 0) |> Array.map (fun (_, t) -> t)
+
+                            Array.append odds ev
+
+                        let filteredTags =
+                            if String.IsNullOrWhiteSpace searchString then
+                                arrangeTags tags
+                            else
+                                tags
+                                |> Array.filter (fun t -> t.Name.ToLower().Contains(searchString.ToLower()))
+                                |> arrangeTags
+
+                        let getColor () =
+                            let r = Random().Next(150, 255)
+                            let g = Random().Next(150, 255)
+                            let b = Random().Next(150, 255)
+                            r, g, b
+
+                        let invertColor (rgb: int * int * int) =
+                            rgb |> fun (r, g, b) -> 255 - r, 255 - g, 255 - b
+
+                        let colorToRGBString (rgb: int * int * int) =
+                            rgb |> fun (r, g, b) -> $"rgb({r},{g},{b})"
+
+
+                        let calculateFontSize (minCount: int) (maxCount: int) (count: int) =
+                            let minSize = 10.0
+                            let maxSize = 64.0
+
+                            minSize
+                            + (maxSize - minSize) * float (count - minCount) / float (maxCount - minCount)
+
+                        if tags.Length = 0 then
                             div {
                                 style' "text-align:center;"
                                 localizer["NoTagsFound"]
                             }
                         else
-                            let minCount = filteredTags |> Array.map (fun x -> x.Stationcount) |> Array.min
-                            let maxCount = filteredTags |> Array.map (fun x -> x.Stationcount) |> Array.max
-
                             div {
-                                class' "tags-list"
+                                style' "margin:10px;"
 
-                                for tag in filteredTags do
-                                    let rColor = getColor ()
-                                    let invertedColor = invertColor rColor
-                                    let rSize = calculateFontSize minCount maxCount tag.Stationcount
-                                    let fSize = Math.Round rSize |> int
-                                    let heightSize = rSize + 2.0 * Math.Round(rSize / 5.0) |> int
-
-                                    a {
-                                        class' "tag-item"
-
-                                        title'
-                                            $"""{tag.Name.ToUpper()} ({localizer["StationsCount"]}: {tag.Stationcount})"""
-
-                                        style'
-                                            $"font-size:{fSize}px;color:{colorToRGBString invertedColor};background-color:{colorToRGBString rColor};"
-
-                                        href $"/stationsByTag/{tag.Name}"
-
-                                        span {
-                                            style' $"height:{heightSize}px;"
-                                            tag.Name.ToUpper()
-                                        }
-                                    }
+                                FluentSearch'' {
+                                    Placeholder(string (localizer["TagName"]))
+                                    Immediate true
+                                    Value searchString
+                                    ValueChanged(fun s -> setSearchString s)
+                                }
                             }
+
+                            if filteredTags.Length = 0 then
+                                div {
+                                    style' "text-align:center;"
+                                    localizer["NoTagsFound"]
+                                }
+                            else
+                                let minCount = filteredTags |> Array.map (fun x -> x.Stationcount) |> Array.min
+                                let maxCount = filteredTags |> Array.map (fun x -> x.Stationcount) |> Array.max
+
+                                div {
+                                    class' "tags-list"
+
+                                    for tag in filteredTags do
+                                        let rColor = getColor ()
+                                        let invertedColor = invertColor rColor
+                                        let rSize = calculateFontSize minCount maxCount tag.Stationcount
+                                        let fSize = Math.Round rSize |> int
+                                        let heightSize = rSize + 2.0 * Math.Round(rSize / 5.0) |> int
+
+                                        a {
+                                            class' "tag-item"
+
+                                            title'
+                                                $"""{tag.Name.ToUpper()} ({localizer["StationsCount"]}: {tag.Stationcount})"""
+
+                                            style'
+                                                $"font-size:{fSize}px;color:{colorToRGBString invertedColor};background-color:{colorToRGBString rColor};"
+
+                                            href $"/stationsByTag/{tag.Name}"
+
+                                            span {
+                                                style' $"height:{heightSize}px;"
+                                                tag.Name.ToUpper()
+                                            }
+                                        }
+                                }
                 }
             })
 
@@ -546,6 +643,7 @@ let favoriteStations =
 
             let getFavorites (name: string option) =
                 async {
+                    store.Stations.Publish(Loading emptyStations)
                     store.SearchMode.Publish(Favorites name)
                     let parameters = getParameters (0, stationsService.Settings)
                     return! stationsService.GetFavoriteStations(name, parameters)
@@ -554,8 +652,8 @@ let favoriteStations =
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     store.HeaderTitle.Publish localizer["Favorites"]
-                    let! stations = getFavorites None
-                    store.Stations.Publish stations
+                    let! stationsResult = getFavorites None
+                    publishStationsResult (store, stationsResult, emptyStations)
                 })
 
             adapt {
@@ -574,13 +672,13 @@ let favoriteStations =
                             task {
                                 setSearchString s
 
-                                let! stations =
+                                let! stationsResult =
                                     if String.IsNullOrWhiteSpace s then
                                         getFavorites None
                                     else
                                         getFavorites (Some s)
 
-                                store.Stations.Publish stations
+                                publishStationsResult (store, stationsResult, emptyStations)
                             })
                     }
                 }
@@ -597,11 +695,12 @@ let stationsByVotes =
              hook: IComponentHook) ->
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
-                    store.SearchMode.Publish ByVotes
                     store.HeaderTitle.Publish localizer["StationsByVotes"]
+                    store.Stations.Publish(Loading emptyStations)
+                    store.SearchMode.Publish ByVotes
                     let parameters = getParameters (0, stationsService.Settings)
-                    let! stations = stationsService.GetStationsByVotes parameters
-                    store.Stations.Publish stations
+                    let! stationsResult = stationsService.GetStationsByVotes parameters
+                    publishStationsResult (store, stationsResult, emptyStations)
                 })
 
             stationsList (store, localizer))
@@ -615,11 +714,12 @@ let stationsByClicks =
              hook: IComponentHook) ->
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
-                    store.SearchMode.Publish ByClicks
                     store.HeaderTitle.Publish localizer["StationsByClicks"]
+                    store.SearchMode.Publish ByClicks
+                    store.Stations.Publish(Loading emptyStations)
                     let parameters = getParameters (0, stationsService.Settings)
-                    let! stations = stationsService.GetStationsByClicks parameters
-                    store.Stations.Publish stations
+                    let! stationsResult = stationsService.GetStationsByClicks parameters
+                    publishStationsResult (store, stationsResult, emptyStations)
                 })
 
             stationsList (store, localizer))
@@ -1108,6 +1208,12 @@ let navmenus =
     html.injectWithNoKey (fun (store: IShareStore, localizer: IStringLocalizer<SharedResources>) ->
         adaptiview () {
             let! binding = store.IsMenuOpen.WithSetter()
+            let! stationsState = store.Stations
+
+            let isDisabled =
+                match stationsState with
+                | Loading _ -> true
+                | _ -> false
 
             FluentNavMenu'' {
                 Width 200
@@ -1117,6 +1223,7 @@ let navmenus =
 
                 FluentNavLink'' {
                     Href "/"
+                    Disabled isDisabled
                     Match NavLinkMatch.All
                     Icon(Icons.Regular.Size20.Home())
                     Tooltip(string (localizer["Home"]))
@@ -1125,6 +1232,7 @@ let navmenus =
 
                 FluentNavLink'' {
                     Href "/favorites"
+                    Disabled isDisabled
                     Match NavLinkMatch.Prefix
                     Icon(Icons.Regular.Size20.Heart())
                     Tooltip(string (localizer["Favorites"]))
@@ -1133,6 +1241,7 @@ let navmenus =
 
                 FluentNavLink'' {
                     Href "/countries"
+                    Disabled isDisabled
                     Match NavLinkMatch.Prefix
                     Icon(Icons.Regular.Size20.Flag())
                     Tooltip(string (localizer["ByCountry"]))
@@ -1141,6 +1250,7 @@ let navmenus =
 
                 FluentNavLink'' {
                     Href "/tags"
+                    Disabled isDisabled
                     Match NavLinkMatch.Prefix
                     Icon(Icons.Regular.Size20.Tag())
                     Tooltip(string (localizer["ByTags"]))
@@ -1149,6 +1259,7 @@ let navmenus =
 
                 FluentNavLink'' {
                     Href "/stationsByVotes"
+                    Disabled isDisabled
                     Match NavLinkMatch.Prefix
                     Icon(Icons.Regular.Size20.Vote())
                     Tooltip(string (localizer["ByVotes"]))
@@ -1157,6 +1268,7 @@ let navmenus =
 
                 FluentNavLink'' {
                     Href "/stationsByClicks"
+                    Disabled isDisabled
                     Match NavLinkMatch.Prefix
                     Icon(Icons.Regular.Size20.CursorClick())
                     Tooltip(string (localizer["ByClicks"]))
@@ -1165,6 +1277,7 @@ let navmenus =
 
                 FluentNavLink'' {
                     Href "/history"
+                    Disabled isDisabled
                     Match NavLinkMatch.Prefix
                     Icon(Icons.Regular.Size20.History())
                     Tooltip(string (localizer["History"]))
@@ -1191,8 +1304,11 @@ let app =
             task {
                 let update (ids: Guid array) =
                     async {
-                        let! stations = services.StationService.GetStations ids
-                        stations |> services.DataAccess.Update |> ignore
+                        let! stationsState = services.StationService.GetStations ids
+
+                        match stationsState with
+                        | Ok stations -> stations |> services.DataAccess.Update |> ignore
+                        | _ -> ()
                     }
 
                 getTitle (store, services.MetadataService) |> Async.Start
@@ -1201,14 +1317,17 @@ let app =
                 let mutable count = 0
 
                 while count < favCount do
-                    let favs =
+                    let favoritesResult =
                         services.DataAccess.GetFavorites(
                             None,
                             getParameters (count, services.StationService.Settings)
                         )
 
-                    favArrs.Add favs
-                    count <- count + favs.Length
+                    match favoritesResult with
+                    | Ok favs ->
+                        favArrs.Add favs
+                        count <- count + favs.Length
+                    | _ -> ()
 
                 favArrs
                 |> Seq.toList

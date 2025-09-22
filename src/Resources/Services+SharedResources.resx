@@ -105,4 +105,10 @@
     <data name="OpenHistoryInBrowser" xml:space="preserve">
         <value>Open History In Browser</value>
     </data>
+    <data name="Fail" xml:space="preserve">
+        <value>The following error occurred</value>
+    </data>    
+    <data name="StationsNotFound" xml:space="preserve">
+        <value>Not Found Any Stations</value>
+    </data>     
 </root>
