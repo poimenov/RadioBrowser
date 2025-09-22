@@ -67,6 +67,8 @@ let main args =
     builder.Services.AddScoped<IFavoritesDataAccess, FavoritesDataAccess>()
     |> ignore
 
+    builder.Services.AddScoped<IHistoryDataAccess, HistoryDataAccess>() |> ignore
+
     let application = builder.Build()
     AppDomain.CurrentDomain.SetData("DataDirectory", AppSettings.AppDataPath)
     Environment.SetEnvironmentVariable(DATA_DIRECTORY, AppSettings.AppDataPath)

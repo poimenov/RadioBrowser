@@ -6,7 +6,6 @@ open System.Collections.Generic
 open System.Globalization
 open System.IO
 open System.Linq
-open System.Threading.Tasks
 open System.Xml
 open System.Xml.Linq
 open System.Xml.Xsl
@@ -20,11 +19,6 @@ open Microsoft.JSInterop
 open FSharp.Data.Adaptive
 open Fun.Blazor
 open Fun.Blazor.Router
-
-type HistoryRecord =
-    { StartTime: DateTime
-      Title: string
-      StationName: string }
 
 type Github() =
     inherit
@@ -760,7 +754,9 @@ let openHistoryAsync
                 XElement(
                     "History",
                     [ XAttribute("Date", DateTime.Today.ToLongDateString()) ],
-                    history |> List.map (fun r -> convertToXElement (r, settings))
+                    history
+                    |> List.sortByDescending (fun r -> r.StartTime)
+                    |> List.map (fun r -> convertToXElement (r, settings))
                 )
                     .ToString()
 
@@ -770,12 +766,14 @@ let openHistoryAsync
                     (Path.Combine(AppSettings.WwwRootFolderPath, "history.xslt"))
                     (Map.ofList parameters)
 
+
             match htmlOutputResult with
             | Error msg -> return Error msg
             | Ok htmlOutput ->
-                let base64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes htmlOutput)
-                let dataUrl = $"data:text/html;base64,{base64}"
-                los.OpenUrl dataUrl
+                let filePath = Path.Combine(AppSettings.AppDataPath, "history.htm")
+                use streamWriter = new StreamWriter(filePath)
+                do! streamWriter.WriteAsync htmlOutput |> Async.AwaitTask
+                los.OpenUrl filePath
                 return Ok()
         with ex ->
             return Error ex.Message
@@ -866,7 +864,7 @@ let historyPage =
                 }
         })
 
-let rec getTitle (store: IShareStore, metadataService: IMetadataService) =
+let rec getTitle (store: IShareStore, metadataService: IMetadataService, historyDataAccess: IHistoryDataAccess) =
     async {
         try
             match store.SelectedStation.Value with
@@ -897,6 +895,8 @@ let rec getTitle (store: IShareStore, metadataService: IMetadataService) =
                                         | Some r -> r.Title <> title || r.StationName <> station.Name
                                         | None -> true
                                 then
+                                    historyDataAccess.Add record
+
                                     store.History.Publish(
                                         record :: history |> List.truncate store.HistoryTruncateCount.Value
                                     )
@@ -908,7 +908,7 @@ let rec getTitle (store: IShareStore, metadataService: IMetadataService) =
             store.Title.Publish None
 
         do! store.GetTitleDelay.Value |> Async.Sleep
-        return! getTitle (store, metadataService)
+        return! getTitle (store, metadataService, historyDataAccess)
     }
 
 let player =
@@ -1019,11 +1019,11 @@ let player =
 
                         OnClick(fun _ ->
                             task {
-                                if services.DataAccess.Exists station.Id then
-                                    services.DataAccess.Remove station.Id
+                                if services.FavoritesDataAccess.Exists station.Id then
+                                    services.FavoritesDataAccess.Remove station.Id
                                     station.IsFavorite <- false
                                 else
-                                    services.DataAccess.Add station
+                                    services.FavoritesDataAccess.Add station
                                     services.StationService.VoteStation station.Id
 
                                 store.SelectedStationIsFavorite.Publish station.IsFavorite
@@ -1307,18 +1307,26 @@ let app =
                         let! stationsState = services.StationService.GetStations ids
 
                         match stationsState with
-                        | Ok stations -> stations |> services.DataAccess.Update |> ignore
+                        | Ok stations -> stations |> services.FavoritesDataAccess.Update |> ignore
                         | _ -> ()
                     }
 
-                getTitle (store, services.MetadataService) |> Async.Start
-                let favCount = services.DataAccess.FavoritesCount()
+                let historyResult = services.HistoryDataAccess.GetHistory()
+
+                match historyResult with
+                | Ok records -> store.History.Publish records
+                | _ -> ()
+
+                getTitle (store, services.MetadataService, services.HistoryDataAccess)
+                |> Async.Start
+
+                let favCount = services.FavoritesDataAccess.FavoritesCount()
                 let favArrs = new List<Station array>()
                 let mutable count = 0
 
                 while count < favCount do
                     let favoritesResult =
-                        services.DataAccess.GetFavorites(
+                        services.FavoritesDataAccess.GetFavorites(
                             None,
                             getParameters (count, services.StationService.Settings)
                         )

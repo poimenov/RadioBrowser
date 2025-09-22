@@ -59,14 +59,19 @@ type ProcessService() =
 type ILinkOpeningService =
     abstract member OpenUrl: url: string -> unit
 
-type LinkOpeningService(platformService: IPlatformService, processService: IProcessService) =
+type LinkOpeningService
+    (platformService: IPlatformService, processService: IProcessService, logger: ILogger<LinkOpeningService>) =
     interface ILinkOpeningService with
-        member _.OpenUrl(url) =
-            match platformService.GetPlatform() with
-            | Windows -> processService.Run("cmd", $"/c start {url}")
-            | Linux -> processService.Run("xdg-open", url)
-            | MacOS -> processService.Run("open", url)
-            | _ -> ()
+        member _.OpenUrl url =
+            try
+                match platformService.GetPlatform() with
+                | Windows -> processService.Run("cmd", $"/c start /b {url}")
+                | Linux -> processService.Run("xdg-open", url)
+                | MacOS -> processService.Run("open", url)
+                | _ -> ()
+            with ex ->
+                Debug.WriteLine ex
+                logger.LogError(ex, "Error while opening next url = {url}")
 
 type IApiUrlProvider =
     abstract member GetUrl: unit -> string
@@ -98,7 +103,7 @@ type ApiUrlProvider(logger: ILogger<ApiUrlProvider>) =
 
                 searchUrl
             with ex ->
-                Debug.WriteLine(ex)
+                Debug.WriteLine ex
                 logger.LogError(ex, "Error while getting api url")
                 fallbackUrl // Return fallback URL on error
 
@@ -483,10 +488,20 @@ type SharedResources() = class end
 type IMetadataService =
     abstract member GetTitleAsync: string -> Async<Result<string option, exn>>
 
+type HistoryRecord =
+    { StartTime: DateTime
+      Title: string
+      StationName: string }
+
+type IHistoryDataAccess =
+    abstract member GetHistory: unit -> Result<HistoryRecord list, string>
+    abstract member Add: record: HistoryRecord -> unit
+
 type IServices =
     abstract member ToastService: IToastService
     abstract member StationService: IStationsService
-    abstract member DataAccess: IFavoritesDataAccess
+    abstract member FavoritesDataAccess: IFavoritesDataAccess
+    abstract member HistoryDataAccess: IHistoryDataAccess
     abstract member LinkOpeningService: ILinkOpeningService
     abstract member Localizer: IStringLocalizer<SharedResources>
     abstract member MetadataService: IMetadataService
@@ -499,16 +514,18 @@ type Services
         linkOpeningService: ILinkOpeningService,
         localizer: IStringLocalizer<SharedResources>,
         metadataService: IMetadataService,
-        jsRuntime: IJSRuntime
+        jsRuntime: IJSRuntime,
+        historyDataAccess: IHistoryDataAccess
     ) =
     interface IServices with
         member _.ToastService = toastService
-        member _.DataAccess: IFavoritesDataAccess = stationService.FavoritesDataAccess
+        member _.FavoritesDataAccess: IFavoritesDataAccess = stationService.FavoritesDataAccess
         member _.StationService: IStationsService = stationService
         member _.LinkOpeningService: ILinkOpeningService = linkOpeningService
         member _.Localizer: IStringLocalizer<SharedResources> = localizer
         member _.MetadataService: IMetadataService = metadataService
         member _.JsRuntime: IJSRuntime = jsRuntime
+        member _.HistoryDataAccess = historyDataAccess
 
 type MetadataService(client: HttpClient, options: IOptions<AppSettings>, logger: ILogger<FavoritesDataAccess>) =
 
@@ -614,3 +631,55 @@ type MetadataService(client: HttpClient, options: IOptions<AppSettings>, logger:
                     logger.LogError(ex, "Error while getting metadata from {0}", url)
                     return Error ex
             }
+
+type HistoryDataAccess(options: IOptions<AppSettings>, logger: ILogger<FavoritesDataAccess>) =
+    let mapper = BsonMapper.Global
+
+    do mapper.Entity<HistoryRecord>().Id(fun x -> x.StartTime) |> ignore
+
+    let database (connectionString: string) =
+        new LiteDatabase(connectionString, mapper)
+
+    let getHistory (db: LiteDatabase) =
+        let retVal = db.GetCollection<HistoryRecord> "history"
+        retVal.EnsureIndex((fun x -> x.StartTime), true) |> ignore
+        retVal
+
+    interface IHistoryDataAccess with
+        member _.Add(record: HistoryRecord) : unit =
+            try
+                use db = database AppSettings.DataBasePath
+                let history = getHistory db
+
+                if not (history.Exists(fun x -> x.StartTime = record.StartTime)) then
+                    history.Insert record |> ignore
+
+                let totalCount = history.Count()
+
+                if totalCount > options.Value.HistoryTruncateCount then
+                    let oldestRecord =
+                        history
+                            .Query()
+                            .OrderByDescending(fun x -> x.StartTime)
+                            .Offset(99)
+                            .Limit(1)
+                            .ToList()
+                        |> Seq.tryHead
+
+                    match oldestRecord with
+                    | Some record -> history.DeleteMany(fun x -> x.StartTime < record.StartTime) |> ignore
+                    | None -> ()
+            with ex ->
+                logger.LogError(ex, "Error while adding history record")
+
+
+        member _.GetHistory() : Result<HistoryRecord list, string> =
+            try
+                use db = database AppSettings.DataBasePath
+
+                let retVal = getHistory(db).FindAll().OrderBy(fun x -> x.StartTime) |> Seq.toList
+
+                Ok retVal
+            with ex ->
+                logger.LogError(ex, "Error while getting history")
+                Error ex.Message
