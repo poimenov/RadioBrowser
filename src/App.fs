@@ -1064,6 +1064,7 @@ let player =
                     AnchorId "player-button-volume"
                     style' "width: 50px;height: 260px;"
                     VerticalPosition VerticalPosition.Top
+                    HorizontalPosition HorizontalPosition.Center
                     Open visiblePopover
                     OpenChanged(fun v -> setVisiblePopover v)
 
@@ -1073,12 +1074,13 @@ let player =
                             Min 0.0
                             Max 1.0
                             Step 0.01
-                            Value volume
+                            Value(1.0 - volume)
 
                             ValueChanged(fun v ->
-                                setVolume v
-                                store.Volume.Publish v
-                                services.JsRuntime.InvokeVoidAsync("setVolume", v) |> ignore)
+                                let rv = 1.0 - v
+                                setVolume rv
+                                store.Volume.Publish rv
+                                services.JsRuntime.InvokeVoidAsync("setVolume", rv) |> ignore)
                         }
                     )
                 }
