@@ -181,7 +181,8 @@ type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
 
     do mapper.Entity<Station>().Id(fun x -> x.Id) |> ignore
 
-    let database (connectionString: string) =
+    let database (dataBasePath: string) =
+        let connectionString = $"Filename={dataBasePath};Connection=shared"
         new LiteDatabase(connectionString, mapper)
 
     let getFavorites (db: LiteDatabase) =
@@ -637,7 +638,8 @@ type HistoryDataAccess(options: IOptions<AppSettings>, logger: ILogger<Favorites
 
     do mapper.Entity<HistoryRecord>().Id(fun x -> x.StartTime) |> ignore
 
-    let database (connectionString: string) =
+    let database (dataBasePath: string) =
+        let connectionString = $"Filename={dataBasePath};Connection=shared"
         new LiteDatabase(connectionString, mapper)
 
     let getHistory (db: LiteDatabase) =

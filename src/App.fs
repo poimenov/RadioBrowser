@@ -1209,11 +1209,26 @@ let navmenus =
         adaptiview () {
             let! binding = store.IsMenuOpen.WithSetter()
             let! stationsState = store.Stations
+            let! tagsState = store.Tags
+            let! countriesState = store.Countries
 
             let isDisabled =
-                match stationsState with
-                | Loading _ -> true
-                | _ -> false
+                let ss =
+                    match stationsState with
+                    | Loading _ -> true
+                    | _ -> false
+
+                let ts =
+                    match tagsState with
+                    | Loading _ -> true
+                    | _ -> false
+
+                let cs =
+                    match countriesState with
+                    | Loading _ -> true
+                    | _ -> false
+
+                ss || ts || cs
 
             FluentNavMenu'' {
                 Width 200
