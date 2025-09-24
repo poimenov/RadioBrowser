@@ -26,6 +26,8 @@ type public AppSettings() =
     static member DataBasePath =
         Path.Combine(AppSettings.AppDataPath, AppSettings.DataBaseFileName)
 
+    static member ConnectionString = $"Filename={AppSettings.DataBasePath};Connection=shared"
+
     static member LogConfigPath =
         Path.Combine(AppContext.BaseDirectory, AppSettings.LogConfigFileName)
 

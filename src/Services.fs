@@ -181,10 +181,6 @@ type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
 
     do mapper.Entity<Station>().Id(fun x -> x.Id) |> ignore
 
-    let database (dataBasePath: string) =
-        let connectionString = $"Filename={dataBasePath};Connection=shared"
-        new LiteDatabase(connectionString, mapper)
-
     let getFavorites (db: LiteDatabase) =
         let retVal = db.GetCollection<Station> "favorites"
         retVal.EnsureIndex((fun x -> x.Id), true) |> ignore
@@ -192,7 +188,7 @@ type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
 
     interface IFavoritesDataAccess with
         member _.Add(station: Station) =
-            use db = database AppSettings.DataBasePath
+            use db = new LiteDatabase(AppSettings.ConnectionString, mapper)
             let favorites = getFavorites db
 
             if not (favorites.Exists(fun x -> x.Id = station.Id)) then
@@ -201,7 +197,7 @@ type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
 
         member _.Update(stations: Station array) : Task<unit> =
             async {
-                use db = database AppSettings.DataBasePath
+                use db = new LiteDatabase(AppSettings.ConnectionString, mapper)
                 let favorites = getFavorites db
 
                 stations
@@ -219,12 +215,12 @@ type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
             |> Async.StartAsTask
 
         member _.Exists(id: Guid) =
-            use db = database AppSettings.DataBasePath
+            use db = new LiteDatabase(AppSettings.ConnectionString, mapper)
             getFavorites(db).Exists(fun x -> x.Id = id)
 
         member _.GetFavorites(name: string option, parameters: GetStationParameters) =
             try
-                use db = database AppSettings.DataBasePath
+                use db = new LiteDatabase(AppSettings.ConnectionString, mapper)
 
                 let retVal =
                     match name with
@@ -254,20 +250,19 @@ type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
                 Error ex.Message
 
         member _.Remove(id: Guid) =
-            use db = database AppSettings.DataBasePath
+            use db = new LiteDatabase(AppSettings.ConnectionString, mapper)
 
             if not (getFavorites(db).Delete(BsonValue id)) then
                 logger.LogError("Failed to remove station with id {0} from favorites.", id)
 
         member _.IsFavorites(ids: Guid array) =
-            let exists (id: Guid, favorites: ILiteCollection<Station>) = favorites.Exists(fun x -> x.Id = id)
-            use db = database AppSettings.DataBasePath
+            use db = new LiteDatabase(AppSettings.ConnectionString, mapper)
             let favorites = getFavorites db
-
+            let exists (id: Guid, fvs: ILiteCollection<Station>) = fvs.Exists(fun x -> x.Id = id)
             ids |> Array.map (fun id -> id, exists (id, favorites)) |> Map.ofArray
 
         member _.FavoritesCount() : int =
-            use db = database AppSettings.DataBasePath
+            use db = new LiteDatabase(AppSettings.ConnectionString, mapper)
             getFavorites(db).Count()
 
 type IHttpHandler =
@@ -638,10 +633,6 @@ type HistoryDataAccess(options: IOptions<AppSettings>, logger: ILogger<Favorites
 
     do mapper.Entity<HistoryRecord>().Id(fun x -> x.StartTime) |> ignore
 
-    let database (dataBasePath: string) =
-        let connectionString = $"Filename={dataBasePath};Connection=shared"
-        new LiteDatabase(connectionString, mapper)
-
     let getHistory (db: LiteDatabase) =
         let retVal = db.GetCollection<HistoryRecord> "history"
         retVal.EnsureIndex((fun x -> x.StartTime), true) |> ignore
@@ -650,7 +641,7 @@ type HistoryDataAccess(options: IOptions<AppSettings>, logger: ILogger<Favorites
     interface IHistoryDataAccess with
         member _.Add(record: HistoryRecord) : unit =
             try
-                use db = database AppSettings.DataBasePath
+                use db = new LiteDatabase(AppSettings.ConnectionString, mapper)
                 let history = getHistory db
 
                 if not (history.Exists(fun x -> x.StartTime = record.StartTime)) then
@@ -677,10 +668,8 @@ type HistoryDataAccess(options: IOptions<AppSettings>, logger: ILogger<Favorites
 
         member _.GetHistory() : Result<HistoryRecord list, string> =
             try
-                use db = database AppSettings.DataBasePath
-
+                use db = new LiteDatabase(AppSettings.ConnectionString, mapper)
                 let retVal = getHistory(db).FindAll().OrderBy(fun x -> x.StartTime) |> Seq.toList
-
                 Ok retVal
             with ex ->
                 logger.LogError(ex, "Error while getting history")
