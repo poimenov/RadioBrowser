@@ -52,9 +52,10 @@ type ProcessService() =
             psi.CreateNoWindow <- false
             psi.Arguments <- arguments
 
-            let p = new Process()
+            use p = new Process()
             p.StartInfo <- psi
             p.Start() |> ignore
+            p.Dispose()
 
 type ILinkOpeningService =
     abstract member OpenUrl: url: string -> unit
@@ -65,7 +66,7 @@ type LinkOpeningService
         member _.OpenUrl url =
             try
                 match platformService.GetPlatform() with
-                | Windows -> processService.Run("cmd", $"/c start /b {url}")
+                | Windows -> processService.Run("cmd", $"/c start /b \"{url}\"")
                 | Linux -> processService.Run("xdg-open", url)
                 | MacOS -> processService.Run("open", url)
                 | _ -> ()
@@ -89,7 +90,9 @@ type ApiUrlProvider(logger: ILogger<ApiUrlProvider>) =
                 let mutable searchUrl = fallbackUrl // Fallback
 
                 for ipAddress in ips do
-                    let reply = (new Ping()).Send ipAddress
+                    use ping = new Ping()
+                    let reply = ping.Send ipAddress
+                    ping.Dispose()
 
                     if reply <> null && reply.RoundtripTime < lastRoundTripTime then
                         lastRoundTripTime <- reply.RoundtripTime
@@ -598,27 +601,31 @@ type MetadataService(client: HttpClient, options: IOptions<AppSettings>, logger:
                     let metaInt =
                         match resp.Headers.TryGetValues "icy-metaint" with
                         | true, values ->
-                            let value = Seq.head values
-
-                            match Int32.TryParse value with
-                            | true, v -> v
-                            | _ -> 0
-                        | _ -> 0
+                            match Seq.tryHead values with
+                            | Some value ->
+                                match Int32.TryParse value with
+                                | true, v -> v
+                                | _ -> 0
+                            | None -> 0
+                        | _ -> 0                  
 
                     if metaInt > 0 then
                         let buffer = Array.zeroCreate<byte> metaInt
                         use! stream = resp.Content.ReadAsStreamAsync() |> Async.AwaitTask
                         let! _ = stream.ReadExactlyAsync(buffer, 0, buffer.Length).AsTask() |> Async.AwaitTask
                         let lenByte = stream.ReadByte()
-                        let metaLength = lenByte * 16
+                        if lenByte >= 0 then
+                            let metaLength = lenByte * 16
 
-                        if metaLength > 0 then
-                            let metaBuffer = Array.zeroCreate<byte> metaLength
-                            let! metaRead = stream.ReadAsync(metaBuffer, 0, metaLength) |> Async.AwaitTask
+                            if metaLength > 0 then
+                                let metaBuffer = Array.zeroCreate<byte> metaLength
+                                let! metaRead = stream.ReadAsync(metaBuffer, 0, metaLength) |> Async.AwaitTask
 
-                            return
-                                Encoding.UTF8.GetString(metaBuffer, 0, metaRead).TrimEnd('\u0000')
-                                |> extractStreamTitle
+                                return
+                                    Encoding.UTF8.GetString(metaBuffer, 0, metaRead).TrimEnd('\u0000')
+                                    |> extractStreamTitle
+                            else
+                                return Ok None
                         else
                             return Ok None
                     else
@@ -628,7 +635,7 @@ type MetadataService(client: HttpClient, options: IOptions<AppSettings>, logger:
                     return Error ex
             }
 
-type HistoryDataAccess(options: IOptions<AppSettings>, logger: ILogger<FavoritesDataAccess>) =
+type HistoryDataAccess(options: IOptions<AppSettings>, logger: ILogger<HistoryDataAccess>) =
     let mapper = BsonMapper.Global
 
     do mapper.Entity<HistoryRecord>().Id(fun x -> x.StartTime) |> ignore
@@ -654,7 +661,7 @@ type HistoryDataAccess(options: IOptions<AppSettings>, logger: ILogger<Favorites
                         history
                             .Query()
                             .OrderByDescending(fun x -> x.StartTime)
-                            .Offset(99)
+                            .Offset(options.Value.HistoryTruncateCount - 1)
                             .Limit(1)
                             .ToList()
                         |> Seq.tryHead

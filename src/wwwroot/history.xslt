@@ -74,7 +74,7 @@
     <xsl:template match="Record">
         <tr>
             <td class="time">
-                <xsl:value-of select="substring(@StartTime, 12, 8)"/>
+                <xsl:value-of select="concat(substring(@StartTime, 1, 10), ' ',substring(@StartTime, 12, 8))"/>
             </td>
             <td>
                 <xsl:value-of select="@StationName"/>

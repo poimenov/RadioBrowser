@@ -1397,9 +1397,18 @@ let app =
                                 let audioUrl =
                                     match selectedStation with
                                     | NotSelected -> None
-                                    | Selected station -> Some station.UrlResolved
+                                    | Selected station -> 
+                                        if String.IsNullOrWhiteSpace station.UrlResolved then None
+                                        else Some station.UrlResolved                                    
 
-                                services.JsRuntime.InvokeVoidAsync("playAudio", isPlaying, audioUrl) |> ignore
+                                task {
+                                    try                                        
+                                        do! services.JsRuntime.InvokeVoidAsync("playAudio", isPlaying, audioUrl)
+                                    with ex ->
+                                        services.ToastService.ShowError(
+                                            string (services.Localizer["ErrorInvokePlayAudio"])
+                                        ) |> ignore
+                                } |> ignore                                
 
                                 let getErrorMessage =
                                     match selectedStation with
@@ -1444,10 +1453,9 @@ let app =
                                 }
 
                                 let styleHeight =
-                                    if selectedStation = NotSelected then
-                                        "height: calc(100% - 30px);"
-                                    else
-                                        "height: calc(100% - 104px);"
+                                    match selectedStation with
+                                    | NotSelected -> "height: calc(100% - 30px);"
+                                    | Selected _ -> "height: calc(100% - 104px);"
 
                                 div {
                                     class' "content"
@@ -1468,13 +1476,13 @@ let app =
 
                                             onstalled (fun _ ->
                                                 task {
-                                                    services.ToastService.ShowError getErrorMessage |> ignore
+                                                    services.ToastService.ShowError getErrorMessage
                                                     store.IsPlaying.Publish false
                                                 })
 
                                             onerror (fun _ ->
                                                 task {
-                                                    services.ToastService.ShowError getErrorMessage |> ignore
+                                                    services.ToastService.ShowError getErrorMessage
                                                     store.IsPlaying.Publish false
                                                 })
 

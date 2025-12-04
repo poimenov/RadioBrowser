@@ -26,7 +26,7 @@ window.setCallbacks = (elementId, dotNetRef) => {
 
 function playAudio(isPlaying, src) {
     var player = document.getElementById("player");
-    if (src)
+    if (player && src)
     {
         if (player.src != src)
             player.src = src;

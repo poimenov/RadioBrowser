@@ -110,5 +110,8 @@
     </data>  
     <data name="StationsNotFound" xml:space="preserve">
         <value>Не найдены станции</value>
-    </data>          
+    </data>     
+    <data name="ErrorInvokePlayAudio" xml:space="preserve">
+        <value>Не удалось вызвать playAudio</value>
+    </data>     
 </root>
