@@ -227,12 +227,7 @@ type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
 
                 let retVal =
                     match name with
-                    | None ->
-                        getFavorites(db)
-                            .FindAll()
-                            .Skip(parameters.Offset)
-                            .Take(parameters.Limit)
-                            .ToArray()
+                    | None -> getFavorites(db).FindAll().Skip(parameters.Offset).Take(parameters.Limit).ToArray()
                     | Some name when not (String.IsNullOrWhiteSpace name) ->
                         getFavorites(db)
                             .Find(
@@ -241,12 +236,7 @@ type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
                                 parameters.Limit
                             )
                             .ToArray()
-                    | Some _ ->
-                        getFavorites(db)
-                            .FindAll()
-                            .Skip(parameters.Offset)
-                            .Take(parameters.Limit)
-                            .ToArray()
+                    | Some _ -> getFavorites(db).FindAll().Skip(parameters.Offset).Take(parameters.Limit).ToArray()
 
                 Ok retVal
             with ex ->
@@ -527,7 +517,6 @@ type Services
         member _.HistoryDataAccess = historyDataAccess
 
 type MetadataService(client: HttpClient, options: IOptions<AppSettings>, logger: ILogger<FavoritesDataAccess>) =
-
     let extractStreamTitle (text: string) =
         let m = Regex.Match(text, "StreamTitle='([^']*)'")
 
@@ -592,14 +581,14 @@ type MetadataService(client: HttpClient, options: IOptions<AppSettings>, logger:
                     if client.Timeout > TimeSpan.FromMilliseconds(float options.Value.GetTitleDelay) then
                         client.Timeout <- TimeSpan.FromMilliseconds(float options.Value.GetTitleDelay - 100.0)
 
-                    use! resp =
+                    use! response =
                         client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead)
                         |> Async.AwaitTask
 
-                    resp.EnsureSuccessStatusCode() |> ignore
+                    response.EnsureSuccessStatusCode() |> ignore
 
                     let metaInt =
-                        match resp.Headers.TryGetValues "icy-metaint" with
+                        match response.Headers.TryGetValues "icy-metaint" with
                         | true, values ->
                             match Seq.tryHead values with
                             | Some value ->
@@ -607,13 +596,14 @@ type MetadataService(client: HttpClient, options: IOptions<AppSettings>, logger:
                                 | true, v -> v
                                 | _ -> 0
                             | None -> 0
-                        | _ -> 0                  
+                        | _ -> 0
 
                     if metaInt > 0 then
                         let buffer = Array.zeroCreate<byte> metaInt
-                        use! stream = resp.Content.ReadAsStreamAsync() |> Async.AwaitTask
+                        use! stream = response.Content.ReadAsStreamAsync() |> Async.AwaitTask
                         let! _ = stream.ReadExactlyAsync(buffer, 0, buffer.Length).AsTask() |> Async.AwaitTask
                         let lenByte = stream.ReadByte()
+
                         if lenByte >= 0 then
                             let metaLength = lenByte * 16
 

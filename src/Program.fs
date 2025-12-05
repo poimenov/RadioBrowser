@@ -33,7 +33,7 @@ let main args =
     builder.Services.AddFunBlazorWasm() |> ignore
     builder.Services.AddFluentUIComponents() |> ignore
 
-    builder.Services.AddLogging(fun logging -> logging.ClearProviders().AddLog4Net() |> ignore<ILoggingBuilder>)
+    builder.Services.AddLogging(fun logging -> logging.ClearProviders().AddLog4Net() |> ignore)
     |> ignore
 
     builder.Services.AddLocalization(fun options -> options.ResourcesPath <- "Resources")
@@ -72,10 +72,13 @@ let main args =
     let application = builder.Build()
     AppDomain.CurrentDomain.SetData("DataDirectory", AppSettings.AppDataPath)
     Environment.SetEnvironmentVariable(DATA_DIRECTORY, AppSettings.AppDataPath)
-    FileInfo AppSettings.LogConfigPath |> XmlConfigurator.Configure |> ignore
-
     let logger = application.Services.GetRequiredService<ILogger<_>>()
     logger.LogInformation "Starting application"
+
+    match FileInfo AppSettings.LogConfigPath with
+    | file when file.Exists -> XmlConfigurator.Configure file |> ignore
+    | _ -> logger.LogWarning "Config file not found"
+
     let settings = application.Services.GetRequiredService<IOptions<AppSettings>>()
     CultureInfo.DefaultThreadCurrentCulture <- CultureInfo.GetCultureInfo settings.Value.CultureName
     CultureInfo.DefaultThreadCurrentUICulture <- CultureInfo.GetCultureInfo settings.Value.CultureName
@@ -84,11 +87,9 @@ let main args =
     application.MainWindow
         .RegisterSizeChangedHandler(
             EventHandler<Drawing.Size>(fun _ args ->
-                let settings = application.Services.GetRequiredService<IOptions<AppSettings>>()
                 settings.Value.WindowWidth <- args.Width
                 settings.Value.WindowHeight <- args.Height
-                settings.Value.Save())
-
+                lock settings.Value (fun () -> settings.Value.Save()))
         )
         .RegisterWindowClosingHandler(fun _ _ ->
             let client = application.Services.GetRequiredService<HttpClient>()
@@ -101,9 +102,14 @@ let main args =
     |> ignore
 
     AppDomain.CurrentDomain.UnhandledException.Add(fun e ->
-        let ex = e.ExceptionObject :?> Exception
-        application.Services.GetRequiredService<ILogger<_>>().LogError(ex, ex.Message)
-        application.MainWindow.ShowMessage(ex.Message, "Error") |> ignore)
+        match e.ExceptionObject with
+        | :? Exception as ex ->
+            application.Services.GetRequiredService<ILogger<_>>().LogError(ex, ex.Message)
+            application.MainWindow.ShowMessage(ex.Message, "Error") |> ignore
+        | _ ->
+            application.Services
+                .GetRequiredService<ILogger<_>>()
+                .LogError("Non-exception thrown: {0}", e.ExceptionObject))
 
     application.Run()
     0

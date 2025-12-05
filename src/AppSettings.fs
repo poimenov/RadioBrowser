@@ -66,7 +66,6 @@ type public AppSettings() =
         let filePath =
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppSettings.AppConfigFileName)
 
-        if File.Exists filePath then
-            let options = JsonSerializerOptions(WriteIndented = true)
-            let jsonString = JsonSerializer.Serialize(this, options)
-            File.WriteAllText(filePath, jsonString)
+        let options = JsonSerializerOptions(WriteIndented = true)
+        let jsonString = JsonSerializer.Serialize(this, options)
+        File.WriteAllText(filePath, jsonString)
