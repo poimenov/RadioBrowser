@@ -43,19 +43,22 @@ type PlatformService() =
 type IProcessService =
     abstract member Run: command: string * arguments: string -> unit
 
-type ProcessService() =
+type ProcessService(logger: ILogger<IProcessService>) =
     interface IProcessService with
         member _.Run(command, arguments) =
-            let psi = new ProcessStartInfo(command)
-            psi.RedirectStandardOutput <- false
-            psi.UseShellExecute <- false
-            psi.CreateNoWindow <- false
-            psi.Arguments <- arguments
+            try
+                let psi = new ProcessStartInfo(command)
+                psi.RedirectStandardOutput <- false
+                psi.UseShellExecute <- true
+                psi.CreateNoWindow <- true
+                psi.Arguments <- arguments
 
-            use p = new Process()
-            p.StartInfo <- psi
-            p.Start() |> ignore
-            p.Dispose()
+                use p = new Process()
+                p.StartInfo <- psi
+                p.Start() |> ignore
+                p.Dispose()
+            with ex ->
+                logger.LogError(ex, $"Error running process: {command} {arguments}")
 
 type ILinkOpeningService =
     abstract member OpenUrl: url: string -> unit
@@ -66,7 +69,7 @@ type LinkOpeningService
         member _.OpenUrl url =
             try
                 match platformService.GetPlatform() with
-                | Windows -> processService.Run("cmd", $"/c start /b \"{url}\"")
+                | Windows -> processService.Run("cmd", $"/c start \"\" \"{url}\"")
                 | Linux -> processService.Run("xdg-open", url)
                 | MacOS -> processService.Run("open", url)
                 | _ -> ()
