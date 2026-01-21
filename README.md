@@ -1,9 +1,9 @@
 # RadioBrowser Player
 
-A lightweight, cross-platform desktop radio player built with F# and .NET 8.0. Discover and listen to thousands of internet radio stations, manage your favorites, and never lose track of what you're listening to.
+A lightweight, cross-platform desktop radio player built with F# and .NET 10.0. Discover and listen to thousands of internet radio stations, manage your favorites, and never lose track of what you're listening to.
 
-[![.NET 8.0](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
-[![F#](https://img.shields.io/badge/F%23-8.0-378BBA?logo=fsharp)](https://fsharp.org/)
+[![.NET 10.0](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![F#](https://img.shields.io/badge/F%23-10.0-378BBA?logo=fsharp)](https://fsharp.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ![Screenshot of the script UI](/img/radioBrowser.Photino.jpg)
@@ -20,7 +20,7 @@ A lightweight, cross-platform desktop radio player built with F# and .NET 8.0. D
 
 ## 🛠️ Built With
 
-*   **[.NET 8.0](https://dotnet.microsoft.com/ru-ru/download/dotnet/8.0)**: The core runtime and framework.
+*   **[.NET 10.0](https://dotnet.microsoft.com/download/dotnet/10.0)**: The core runtime and framework.
 *   **[F#](https://fsharp.org/)**: The primary programming language.
 *   **[Photino.Blazor](https://github.com/tryphotino/photino.Blazor)**: A lightweight native window to host the Blazor UI.
 *   **[Fun.Blazor](https://github.com/slaveOftime/Fun.Blazor)**: A famous F#-first DSL for building Blazor UI components.
@@ -29,7 +29,7 @@ A lightweight, cross-platform desktop radio player built with F# and .NET 8.0. D
 
 ### Installation
 
-1.  **Download the latest release** from the [Releases](https://github.com/poimenov/RadioBrowser/releases) page. If you don't have [.NET 8.0 Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) runtime installed, use self-contained version
+1.  **Download the latest release** from the [Releases](https://github.com/poimenov/RadioBrowser/releases) page. If you don't have [.NET 10.0 Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) runtime installed, use self-contained version
 
 2. Unpack and run it.
 
@@ -37,7 +37,7 @@ A lightweight, cross-platform desktop radio player built with F# and .NET 8.0. D
 ### From Source Code
 #### Prerequisites
 
-*   [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+*   [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 
 #### Build Steps
 
