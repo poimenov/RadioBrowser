@@ -53,13 +53,10 @@ let main args =
     builder.Services.AddScoped<IListsService, ListsService>() |> ignore
     builder.Services.AddScoped<IServices, Services>() |> ignore
 
-    builder.Services.AddSingleton<HttpClient>(fun sp ->
-        let client =
-            new HttpClient(new HttpClientHandler(AllowAutoRedirect = true), disposeHandler = true)
-
-        client.DefaultRequestHeaders.Add("Icy-MetaData", "1")
-        client.DefaultRequestHeaders.UserAgent.ParseAdd HttpHandler.UserAgent
-        client)
+    builder.Services.AddHttpClient(
+        radioBrowserHttpClientName,
+        fun client -> client.DefaultRequestHeaders.UserAgent.ParseAdd radioBrowserHttpClientName
+    )
     |> ignore
 
     builder.Services.AddScoped<IMetadataService, MetadataService>() |> ignore
@@ -91,10 +88,6 @@ let main args =
                 settings.Value.WindowHeight <- args.Height
                 lock settings.Value (fun () -> settings.Value.Save()))
         )
-        .RegisterWindowClosingHandler(fun _ _ ->
-            let client = application.Services.GetRequiredService<HttpClient>()
-            client.Dispose()
-            false)
         .SetSize(settings.Value.WindowWidth, settings.Value.WindowHeight)
         .SetIconFile(Path.Combine(AppSettings.WwwRootFolderName, AppSettings.FavIconFileName))
         .SetTitle

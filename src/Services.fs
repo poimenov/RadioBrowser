@@ -1,6 +1,9 @@
 [<AutoOpen>]
 module RadioBrowser.Services
 
+let radioBrowserHttpClientName = "FSharp-RadioBrowser-App/1.0"
+
+
 open System
 open System.Diagnostics
 open System.Net
@@ -264,32 +267,36 @@ type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
 type IHttpHandler =
     abstract member GetJsonStringAsync: url: string * parameters: list<string * string> -> Async<Result<string, string>>
 
-type HttpHandler(apiUrlProvider: IApiUrlProvider, logger: ILogger<HttpHandler>) =
+type HttpHandler(httpClientFactory: IHttpClientFactory, apiUrlProvider: IApiUrlProvider, logger: ILogger<HttpHandler>) =
     let writeError (ex: exn, url: string, parameters: (string * string) list) =
         let queryString =
-            parameters |> List.map (fun (k, v) -> $"{k}={v}") |> String.concat "&"
+            parameters |> List.map (fun (k, v) -> sprintf "%s=%s" k v) |> String.concat "&"
 
         logger.LogError(
             ex,
-            $"Error while getting responce. Url: https://{apiUrlProvider.GetUrl()}/json/{url}?{queryString}"
+            sprintf "Error while getting responce. Url: https://%s/json/%s?%s" (apiUrlProvider.GetUrl()) url queryString
         )
+
+    let buildUri (url: string, parameters: (string * string) list) =
+        let ub = UriBuilder(sprintf "https://%s/json/%s" (apiUrlProvider.GetUrl()) url)
+
+        if parameters.Length > 0 then
+            ub.Query <-
+                parameters
+                |> List.map (fun (k, v) -> sprintf "%s=%s" (WebUtility.UrlEncode k) (WebUtility.UrlEncode v))
+                |> String.concat "&"
+
+        ub.Uri
 
     let rec fetchWithRetry (url: string, parameters: (string * string) list, retries: int, delay: int) =
         async {
             try
-                let! retVal =
-                    Http.AsyncRequestString(
-                        url = $"https://{apiUrlProvider.GetUrl()}/json/{url}",
-                        headers = [ "User-Agent", HttpHandler.UserAgent ],
-                        query = parameters,
-                        httpMethod = "GET",
-                        responseEncodingOverride = "utf-8"
-                    )
-
+                let client = httpClientFactory.CreateClient radioBrowserHttpClientName
+                let uri = buildUri (url, parameters)
+                let! retVal = client.GetStringAsync(uri) |> Async.AwaitTask
                 return Ok retVal
-
             with
-            | :? WebException as ex when ex.Status = WebExceptionStatus.ProtocolError ->
+            | :? HttpRequestException as ex ->
                 Debug.WriteLine ex
 
                 if retries > 0 then
@@ -302,8 +309,6 @@ type HttpHandler(apiUrlProvider: IApiUrlProvider, logger: ILogger<HttpHandler>) 
                 writeError (ex, url, parameters)
                 return Error ex.Message
         }
-
-    static member UserAgent = "FSharp-RadioBrowser-App/1.0"
 
     interface IHttpHandler with
         member _.GetJsonStringAsync(url: string, parameters: (string * string) list) : Async<Result<string, string>> =
@@ -519,7 +524,8 @@ type Services
         member _.JsRuntime: IJSRuntime = jsRuntime
         member _.HistoryDataAccess = historyDataAccess
 
-type MetadataService(client: HttpClient, options: IOptions<AppSettings>, logger: ILogger<FavoritesDataAccess>) =
+type MetadataService
+    (httpClientFactory: IHttpClientFactory, options: IOptions<AppSettings>, logger: ILogger<MetadataService>) =
     let extractStreamTitle (text: string) =
         let m = Regex.Match(text, "StreamTitle='([^']*)'")
 
@@ -568,7 +574,7 @@ type MetadataService(client: HttpClient, options: IOptions<AppSettings>, logger:
                         if String.IsNullOrWhiteSpace mainTitle then
                             t
                         else
-                            $"{mainTitle} - {t}"
+                            sprintf "%s - %s" mainTitle t
                     else
                         mainTitle
 
@@ -581,25 +587,37 @@ type MetadataService(client: HttpClient, options: IOptions<AppSettings>, logger:
         member _.GetTitleAsync(url: string) =
             async {
                 try
+                    let client = httpClientFactory.CreateClient(radioBrowserHttpClientName)
+
                     if client.Timeout > TimeSpan.FromMilliseconds(float options.Value.GetTitleDelay) then
                         client.Timeout <- TimeSpan.FromMilliseconds(float options.Value.GetTitleDelay - 100.0)
 
+                    use req =
+                        new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, url)
+                    // Request metadata explicitly
+                    req.Headers.TryAddWithoutValidation("Icy-MetaData", "1") |> ignore
+
                     use! response =
-                        client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead)
+                        client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead)
                         |> Async.AwaitTask
 
                     response.EnsureSuccessStatusCode() |> ignore
 
+                    let tryGetHeader (name: string) =
+                        match response.Headers.TryGetValues name with
+                        | true, values -> Seq.tryHead values
+                        | _ ->
+                            match response.Content.Headers.TryGetValues name with
+                            | true, values2 -> Seq.tryHead values2
+                            | _ -> None
+
                     let metaInt =
-                        match response.Headers.TryGetValues "icy-metaint" with
-                        | true, values ->
-                            match Seq.tryHead values with
-                            | Some value ->
-                                match Int32.TryParse value with
-                                | true, v -> v
-                                | _ -> 0
-                            | None -> 0
-                        | _ -> 0
+                        match tryGetHeader "icy-metaint" with
+                        | Some value ->
+                            match Int32.TryParse value with
+                            | true, v -> v
+                            | _ -> 0
+                        | None -> 0
 
                     if metaInt > 0 then
                         let buffer = Array.zeroCreate<byte> metaInt
