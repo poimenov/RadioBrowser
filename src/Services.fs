@@ -1,9 +1,6 @@
 [<AutoOpen>]
 module RadioBrowser.Services
 
-let radioBrowserHttpClientName = "FSharp-RadioBrowser-App/1.0"
-
-
 open System
 open System.Diagnostics
 open System.Net
@@ -21,6 +18,8 @@ open Microsoft.FluentUI.AspNetCore.Components
 open Microsoft.JSInterop
 open FSharp.Data
 open LiteDB
+
+let radioBrowserHttpClientName = "FSharp-RadioBrowser-App/1.0"
 
 type Platform =
     | Windows
@@ -592,8 +591,7 @@ type MetadataService
                     if client.Timeout > TimeSpan.FromMilliseconds(float options.Value.GetTitleDelay) then
                         client.Timeout <- TimeSpan.FromMilliseconds(float options.Value.GetTitleDelay - 100.0)
 
-                    use req =
-                        new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, url)
+                    use req = new HttpRequestMessage(Http.HttpMethod.Get, url)
                     // Request metadata explicitly
                     req.Headers.TryAddWithoutValidation("Icy-MetaData", "1") |> ignore
 

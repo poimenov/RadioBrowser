@@ -11,7 +11,6 @@ open Microsoft.FluentUI.AspNetCore.Components
 open log4net.Config
 open Photino.Blazor
 open RadioBrowser
-open System.Net.Http
 
 [<STAThread>]
 [<EntryPoint>]
