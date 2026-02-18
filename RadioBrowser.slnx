@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src\RadioBrowser.fsproj" />
+  <Project Path="tests\RadioBrowser.Tests.fsproj" />
+</Solution>
