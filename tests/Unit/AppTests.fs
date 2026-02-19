@@ -1,23 +1,12 @@
 namespace RadioBrowser.Tests.Unit
 
 open Xunit
+open Bunit
 open FsUnit.Xunit
 open RadioBrowser
-open Microsoft.Extensions.DependencyInjection
-open Bunit
-open RadioBrowser.Tests.Extensions
+open RadioBrowser.Tests
 
 module AppTests =
-    open Microsoft.AspNetCore.Components.Routing
-    open Moq
-
-    let private createBunitContext () =
-        let textContext = new BunitContext()
-
-        textContext.Services.AddScoped<INavigationInterception>(fun _ -> Mock.Of<INavigationInterception>())
-        |> ignore
-
-        textContext
 
     [<Fact>]
     let ``getParameters should create GetStationParameters with correct values`` () =
@@ -54,7 +43,7 @@ module AppTests =
     [<Fact>]
     let ``stationIcon should return non-null result`` () =
         // Arrange
-        use context = createBunitContext ()
+        use context = TestFixtures.createBunitContext ()
         let testUrl = "http://example.com/favicon.ico"
 
         // Act
@@ -65,26 +54,18 @@ module AppTests =
         result.MarkupMatches
             $"<img src=\"{testUrl}\" class=\"favicon\" loadingExperimental onerror=\"this.src = './images/radio.svg';\" />"
 
-    [<Fact>]
-    let ``stationIcon should handle empty string`` () =
-        // Arrange
-        use context = createBunitContext ()
-
-        // Act
-        let fragment = stationIcon ""
-        use result = context.RenderNode fragment
-
-        // Assert
-        result.MarkupMatches
-            $"<img src=\"./images/radio.svg\" class=\"favicon\" loadingExperimental onerror=\"this.src = './images/radio.svg';\" />"
-
     [<Theory>]
     [<InlineData(null)>]
     [<InlineData("")>]
     [<InlineData("   ")>]
     let ``stationIcon should handle various inputs`` (iconUrl: string) =
+        // Arrange
+        use context = TestFixtures.createBunitContext ()
+
         // Act
-        let result = stationIcon iconUrl
+        let fragment = stationIcon iconUrl
+        use result = context.RenderNode fragment
 
         // Assert
-        result |> should not' (be null)
+        result.MarkupMatches
+            $"<img src=\"./images/radio.svg\" class=\"favicon\" loadingExperimental onerror=\"this.src = './images/radio.svg';\" />"

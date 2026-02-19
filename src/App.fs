@@ -179,7 +179,7 @@ let stationIcon (iconUrl: string) =
     let defaultImageSrc = "./images/radio.svg"
 
     let imgSrc =
-        if String.IsNullOrEmpty iconUrl then
+        if String.IsNullOrWhiteSpace iconUrl then
             defaultImageSrc
         else
             iconUrl
