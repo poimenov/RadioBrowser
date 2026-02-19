@@ -9,6 +9,24 @@ open RadioBrowser.Tests
 module AppTests =
 
     [<Fact>]
+    let ``loadingState should return correct value`` () =
+        // Arrange
+        use context = TestFixtures.createBunitContext ()
+
+        let mockStringLocalizer =
+            MockServices.createMockStringLocalizer ([ "IsLoading", "Loading..." ] |> Map.ofList)
+
+        // Act
+        let fragment = loadingState mockStringLocalizer.Object
+
+        // Assert
+        use result = context.RenderNode fragment
+
+        result.Markup
+        |> should startWith "<div style=\"margin:auto;width:100px;\"><div>Loading...</div><fluent-progress-ring"
+
+
+    [<Fact>]
     let ``getParameters should create GetStationParameters with correct values`` () =
         // Arrange
         let offset = 10

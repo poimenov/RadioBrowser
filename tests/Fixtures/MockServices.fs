@@ -2,8 +2,23 @@ namespace RadioBrowser.Tests
 
 open Moq
 open RadioBrowser
+open Microsoft.Extensions.Localization
 
 module MockServices =
+
+    /// Creates a mock IStringLocalizer with specified resource values
+    let createMockStringLocalizer (resources: Map<string, string>) : Mock<IStringLocalizer<SharedResources>> =
+        let mock = Mock<IStringLocalizer<SharedResources>>()
+
+        mock
+            .Setup(fun x -> x.Item(It.IsAny<string>()))
+            .Returns(fun (name: string) ->
+                match resources.TryFind name with
+                | Some value -> LocalizedString(name, value)
+                | None -> LocalizedString(name, "", false))
+        |> ignore
+
+        mock
 
     /// Creates a mock IPlatformService for testing
     let createMockPlatformService (returnPlatform: Platform) : Mock<IPlatformService> =
