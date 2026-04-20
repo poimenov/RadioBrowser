@@ -26,9 +26,9 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="FsUnit.xUnit" Version="4.2.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.5" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
-    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.5" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.6" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.6" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.6" />
     <PackageReference Include="bunit" Version="2.5.3" />
     <PackageReference Include="Moq" Version="4.20.70" />    
   </ItemGroup>

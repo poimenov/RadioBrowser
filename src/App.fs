@@ -943,11 +943,16 @@ let player =
                             VerticalAlignment VerticalAlignment.Center
 
                             if not (String.IsNullOrEmpty station.CountryCode) then
-                                img {
-                                    class' "flag-icon"
+                                a {
+                                    href $"/stationsByCountry/{station.CountryCode}"
                                     title' station.Country
-                                    src $"./images/flags/{station.CountryCode.ToLower()}.svg"
-                                    loadingExperimental true
+                                    class' "flag-icon-link"
+
+                                    img {
+                                        class' "flag-icon"
+                                        src $"./images/flags/{station.CountryCode.ToLower()}.svg"
+                                        loadingExperimental true
+                                    }
                                 }
 
                             if not (String.IsNullOrEmpty station.Homepage) then
