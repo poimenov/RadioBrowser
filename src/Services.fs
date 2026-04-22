@@ -495,7 +495,7 @@ type IHistoryDataAccess =
 
 type IServices =
     abstract member ToastService: IToastService
-    abstract member StationService: IStationsService
+    abstract member StationsService: IStationsService
     abstract member FavoritesDataAccess: IFavoritesDataAccess
     abstract member HistoryDataAccess: IHistoryDataAccess
     abstract member LinkOpeningService: ILinkOpeningService
@@ -506,7 +506,7 @@ type IServices =
 type Services
     (
         toastService: IToastService,
-        stationService: IStationsService,
+        stationsService: IStationsService,
         linkOpeningService: ILinkOpeningService,
         localizer: IStringLocalizer<SharedResources>,
         metadataService: IMetadataService,
@@ -515,8 +515,11 @@ type Services
     ) =
     interface IServices with
         member _.ToastService = toastService
-        member _.FavoritesDataAccess: IFavoritesDataAccess = stationService.FavoritesDataAccess
-        member _.StationService: IStationsService = stationService
+
+        member _.FavoritesDataAccess: IFavoritesDataAccess =
+            stationsService.FavoritesDataAccess
+
+        member _.StationsService: IStationsService = stationsService
         member _.LinkOpeningService: ILinkOpeningService = linkOpeningService
         member _.Localizer: IStringLocalizer<SharedResources> = localizer
         member _.MetadataService: IMetadataService = metadataService
