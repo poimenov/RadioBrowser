@@ -639,9 +639,10 @@ let countriesPage =
                                 |> Array.distinctBy (fun c -> c.Name)
 
                         div {
-                            style' "margin:10px;"
+                            style' "margin-bottom:10px;"
 
                             FluentSearch'' {
+                                style' "width:330px;"
                                 Placeholder(string (localizer["CountryName"]))
                                 Immediate true
                                 Value searchString
@@ -763,9 +764,10 @@ let tagsPage =
                             }
                         else
                             div {
-                                style' "margin:10px;"
+                                style' "margin-bottom:10px;"
 
                                 FluentSearch'' {
+                                    style' "width:330px;"
                                     Placeholder(string (localizer["TagName"]))
                                     Immediate true
                                     Value searchString
@@ -839,10 +841,10 @@ let favoriteStations =
                 let! searchString, setSearchString = cval("").WithSetter()
 
                 div {
-                    style' "margin:10px;"
+                    class' "stations-list"
+                    style' "padding:10px;"
 
                     FluentSearch'' {
-                        style' "width: 400px;"
                         title' (string (localizer["FilterStations"]))
                         Placeholder(string (localizer["StationName"]))
                         Value searchString

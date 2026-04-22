@@ -39,6 +39,7 @@ type public AppSettings() =
     member val AccentColor: OfficeColor = OfficeColor.Windows with get, set
     member val CultureName: string = "en-US" with get, set
     member val LimitCount = 20 with get, set
+    member val LimitTagsCount = 500 with get, set
     member val HideBroken = true with get, set
     //Possible values of the DefaultOrder: name, url, homepage, favicon, tags, country, state, language, votes, codec,
     //bitrate, lastcheckok, lastchecktime, clicktimestamp, clickcount, clicktrend, changetimestamp, random

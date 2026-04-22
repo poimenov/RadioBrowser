@@ -32,7 +32,9 @@ let main args =
     builder.Services.AddFunBlazorWasm() |> ignore
     builder.Services.AddFluentUIComponents() |> ignore
 
-    builder.Services.AddLogging(fun logging -> logging.ClearProviders().AddLog4Net() |> ignore)
+    builder.Services.AddLogging(fun logging ->
+        logging.ClearProviders().AddLog4Net().AddFilter("System.Net.Http.HttpClient", LogLevel.Warning)
+        |> ignore)
     |> ignore
 
     builder.Services.AddLocalization(fun options -> options.ResourcesPath <- "Resources")

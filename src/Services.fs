@@ -431,7 +431,7 @@ type IListsService =
     abstract member GetCodecs: unit -> Async<Result<NameAndCountProvider.NameAndCount array, string>>
     abstract member GetTags: unit -> Async<Result<NameAndCountProvider.NameAndCount array, string>>
 
-type ListsService(handler: IHttpHandler) =
+type ListsService(handler: IHttpHandler, options: IOptions<AppSettings>) =
     let getNameAndCounts (listName: string) =
         async {
             let! result = handler.GetJsonStringAsync(listName, [])
@@ -441,6 +441,12 @@ type ListsService(handler: IHttpHandler) =
             | Ok jsonString -> return Ok(NameAndCountProvider.ParseList jsonString)
         }
 
+    let getLimit =
+        if options.Value.LimitTagsCount > 0 then
+            options.Value.LimitTagsCount
+        else
+            300
+
     interface IListsService with
         member _.GetCodecs() = getNameAndCounts "codecs"
         member _.GetCountryCodes() = getNameAndCounts "countrycodes"
@@ -448,7 +454,7 @@ type ListsService(handler: IHttpHandler) =
         member _.GetTags() =
             async {
                 let parameters =
-                    [ "limit", "130"
+                    [ "limit", getLimit.ToString()
                       "offset", "0"
                       "order", "stationcount"
                       "reverse", "true"
@@ -642,7 +648,9 @@ type MetadataService
                             return Ok None
                     else
                         return Ok None
-                with ex ->
+                with
+                | :? HttpRequestException as ex -> return Error ex
+                | ex ->
                     logger.LogError(ex, "Error while getting metadata from {0}", url)
                     return Error ex
             }
