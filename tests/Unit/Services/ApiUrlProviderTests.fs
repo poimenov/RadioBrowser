@@ -2,6 +2,7 @@ namespace RadioBrowser.Tests.Unit.Services
 
 open Xunit
 open FsUnit.Xunit
+open Moq
 open RadioBrowser
 open RadioBrowser.Tests
 

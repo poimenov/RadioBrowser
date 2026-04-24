@@ -9,7 +9,18 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="AppSettings.fs" />
-    <Compile Include="Services.fs" />
+    <Compile Include="Interfaces.fs" />
+    <Compile Include="DataAccess/FavoritesDataAccess.fs" />
+    <Compile Include="DataAccess/HistoryDataAccess.fs" />
+    <Compile Include="Services/PlatformService.fs" />
+    <Compile Include="Services/ProcessService.fs" />
+    <Compile Include="Services/LinkOpeningService.fs" />
+    <Compile Include="Services/ApiUrlProvider.fs" />
+    <Compile Include="Services/HttpHandler.fs" />
+    <Compile Include="Services/StationsService.fs" />
+    <Compile Include="Services/ListsService.fs" />
+    <Compile Include="Services/MetadataService.fs" />
+    <Compile Include="Services/Services.fs" />
     <Compile Include="Types.fs" />
     <Compile Include="Components/StationItem.fs" />
     <Compile Include="Components/WatchElement.fs" />
