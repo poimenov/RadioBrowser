@@ -36,7 +36,6 @@ type public AppSettings() =
 
     member val WindowWidth: int = 1024 with get, set
     member val WindowHeight: int = 768 with get, set
-    member val AccentColor: OfficeColor = OfficeColor.Windows with get, set
     member val CultureName: string = "en-US" with get, set
     member val LimitCount = 20 with get, set
     member val LimitTagsCount = 500 with get, set

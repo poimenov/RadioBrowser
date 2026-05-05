@@ -125,6 +125,7 @@ let app =
 
                 FluentDesignTheme'' { StorageName "theme" }
                 FluentToastProvider'' { MaxToastCount 3 }
+                FluentMenuProvider''
 
                 FluentLayout'' {
                     appHeader

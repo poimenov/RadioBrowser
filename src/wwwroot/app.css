@@ -271,3 +271,8 @@ fluent-slider[orientation="vertical"]::part(track-start) {
     background: var(--neutral-fill-strong-rest);
 }
 
+fluent-menu-item > fluent-menu {
+    max-height: 300px;
+    overflow: auto;
+}
+

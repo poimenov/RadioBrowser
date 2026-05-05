@@ -32,6 +32,9 @@ type IShareStore with
     member store.IsMenuOpen = store.CreateCVal(nameof store.IsMenuOpen, true)
     member store.Theme = store.CreateCVal(nameof store.Theme, DesignThemeModes.Light)
 
+    member store.AccentColor =
+        store.CreateCVal(nameof store.AccentColor, OfficeColor.Default)
+
     member store.Stations =
         store.CreateCVal(nameof store.Stations, Loaded(Enumerable.Empty<Station>()))
 
