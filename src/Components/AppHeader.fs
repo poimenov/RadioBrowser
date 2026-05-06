@@ -55,7 +55,14 @@ let appHeader =
 
                             OnLoaded(fun args ->
                                 if args.IsDark then
-                                    store.Theme.Publish DesignThemeModes.Dark)
+                                    store.Theme.Publish DesignThemeModes.Dark
+
+                                store.AccentColor.Publish(
+                                    if args.OfficeColor.HasValue then
+                                        args.OfficeColor.Value
+                                    else
+                                        OfficeColor.Default
+                                ))
                         }
 
                         FluentButton'' {
