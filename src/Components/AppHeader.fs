@@ -85,17 +85,15 @@ let appHeader =
                                             DesignThemeModes.Dark
                                     ))
 
-                                span {
+                                FluentIcon'' {
                                     slot' "start"
 
-                                    FluentIcon'' {
-                                        Value(
-                                            if theme = DesignThemeModes.Dark then
-                                                Icons.Regular.Size20.WeatherSunny() :> Icon
-                                            else
-                                                Icons.Regular.Size20.WeatherMoon() :> Icon
-                                        )
-                                    }
+                                    Value(
+                                        if theme = DesignThemeModes.Dark then
+                                            Icons.Regular.Size20.WeatherSunny() :> Icon
+                                        else
+                                            Icons.Regular.Size20.WeatherMoon() :> Icon
+                                    )
                                 }
 
                                 localizer["SwitchTheme"]
@@ -116,14 +114,11 @@ let appHeader =
                                                 OnClick(fun _ -> store.AccentColor.Publish c)
                                                 Checked(c = accentColor)
 
-                                                span {
+                                                FluentIcon'' {
                                                     slot' "start"
-
-                                                    FluentIcon'' {
-                                                        Value(Icons.Filled.Size20.RectangleLandscape())
-                                                        Color Color.Custom
-                                                        CustomColor(getCustomColor c)
-                                                    }
+                                                    Value(Icons.Filled.Size20.RectangleLandscape())
+                                                    Color Color.Custom
+                                                    CustomColor(getCustomColor c)
                                                 }
 
                                                 c.GetDisplayName()
@@ -131,15 +126,20 @@ let appHeader =
                                     }
                                 )
 
+                                FluentIcon'' {
+                                    slot' "start"
+                                    Value(Icons.Regular.Size20.Color())
+                                }
+
                                 localizer["Accent Color"]
                             }
 
                             FluentMenuItem'' {
                                 OnClick(fun _ -> los.OpenUrl "https://github.com/poimenov/RadioBrowser")
 
-                                span {
+                                FluentIcon'' {
                                     slot' "start"
-                                    FluentIcon'' { Value(Github()) }
+                                    Value(Github())
                                 }
 
                                 localizer["GitHub"]
