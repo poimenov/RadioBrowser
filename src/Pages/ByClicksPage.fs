@@ -2,6 +2,7 @@
 module RadioBrowser.ByCliksPage
 
 open Microsoft.Extensions.Localization
+open Microsoft.FluentUI.AspNetCore.Components
 open Fun.Blazor
 
 let byClicksPage =
@@ -14,6 +15,7 @@ let byClicksPage =
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     store.HeaderTitle.Publish localizer["StationsByClicks"]
+                    store.HeaderIcon.Publish(Icons.Regular.Size24.CursorClick())
                     store.SearchMode.Publish ByClicks
                     store.Stations.Publish(Loading emptyStations)
                     let parameters = getParameters (0, stationsService.Settings)

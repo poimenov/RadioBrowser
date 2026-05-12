@@ -30,6 +30,7 @@ let stationsByTag (tag: string) =
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     store.Stations.Publish(Loading emptyStations)
+                    store.HeaderIcon.Publish(Icons.Regular.Size24.Tag())
                     store.HeaderTitle.Publish $"""{localizer["StationsByTag"]}: {tag}"""
                     let! stationsResult = getStationsByTag (None, tag, None)
                     publishStationsResult (store, stationsResult, emptyStations)

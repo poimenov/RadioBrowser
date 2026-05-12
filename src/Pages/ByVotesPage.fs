@@ -2,6 +2,7 @@
 module RadioBrowser.ByVotesPage
 
 open Microsoft.Extensions.Localization
+open Microsoft.FluentUI.AspNetCore.Components
 open Fun.Blazor
 
 let byVotesPage =
@@ -14,6 +15,7 @@ let byVotesPage =
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     store.HeaderTitle.Publish localizer["StationsByVotes"]
+                    store.HeaderIcon.Publish(Icons.Regular.Size24.Vote())
                     store.Stations.Publish(Loading emptyStations)
                     store.SearchMode.Publish ByVotes
                     let parameters = getParameters (0, stationsService.Settings)

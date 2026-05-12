@@ -26,6 +26,7 @@ let favoriteStations =
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     store.HeaderTitle.Publish localizer["Favorites"]
+                    store.HeaderIcon.Publish(Icons.Regular.Size24.Heart())
                     let! stationsResult = getFavorites None
                     publishStationsResult (store, stationsResult, emptyStations)
                 })

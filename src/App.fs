@@ -150,6 +150,7 @@ let app =
                                     let! isPlaying = store.IsPlaying
                                     let! searchMode = store.SearchMode
                                     let! headerTitle = store.HeaderTitle
+                                    let! headerIcon = store.HeaderIcon
 
                                     let audioUrl =
                                         match selectedStation with
@@ -178,26 +179,6 @@ let app =
                                             let msg = string (services.Localizer["ErrorLoadingStation"])
                                             $"{msg}: {station.Name} ({station.UrlResolved})"
 
-                                    let icon: Icon =
-                                        match searchMode with
-                                        | Search parameters ->
-                                            if parameters.CountryCode.IsSome then
-                                                if
-                                                    parameters.CountryCode.Value = services.StationsService.Settings.CurrentRegion.TwoLetterISORegionName
-                                                then
-                                                    Icons.Regular.Size24.Home()
-                                                else
-                                                    Icons.Regular.Size24.Flag()
-                                            else if parameters.Tag.IsSome then
-                                                Icons.Regular.Size24.Tag()
-                                            else
-                                                Icons.Regular.Size24.Search()
-                                        | Favorites _ -> Icons.Regular.Size32.Heart()
-                                        | ByVotes -> Icons.Regular.Size24.Vote()
-                                        | ByClicks -> Icons.Regular.Size24.CursorClick()
-                                        | History -> Icons.Regular.Size24.History()
-
-
                                     FluentStack'' {
                                         Orientation Orientation.Horizontal
                                         VerticalAlignment VerticalAlignment.Center
@@ -205,7 +186,7 @@ let app =
                                         HorizontalGap 4
                                         style' "height: 30px;"
 
-                                        FluentIcon'' { Value icon }
+                                        FluentIcon'' { Value headerIcon }
 
                                         span {
                                             style' "font-size: 24px; font-weight: bold;"

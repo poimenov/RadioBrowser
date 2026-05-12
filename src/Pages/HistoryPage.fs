@@ -76,6 +76,7 @@ let historyPage =
     html.inject (fun (store: IShareStore, services: IServices) ->
         adapt {
             store.HeaderTitle.Publish services.Localizer["History"]
+            store.HeaderIcon.Publish(Icons.Regular.Size24.History())
             store.SearchMode.Publish History
             let! history, setHistory = store.History.WithSetter()
 

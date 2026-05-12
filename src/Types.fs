@@ -55,6 +55,10 @@ type IShareStore with
     member store.SearchMode = store.CreateCVal(nameof store.SearchMode, ByVotes)
 
     member store.HeaderTitle = store.CreateCVal(nameof store.HeaderTitle, "")
+
+    member store.HeaderIcon =
+        store.CreateCVal<Icon>(nameof store.HeaderIcon, Icons.Regular.Size24.Home())
+
     member store.IsPlaying = store.CreateCVal(nameof store.IsPlaying, false)
     member store.Title = store.CreateCVal<string option>(nameof store.Title, None)
     member store.GetTitleDelay = store.CreateCVal(nameof store.GetTitleDelay, 5000)

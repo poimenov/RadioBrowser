@@ -31,6 +31,12 @@ let stationsByCountry (countryCode: string) =
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     let regionInfo = RegionInfo countryCode
+
+                    if countryCode = stationsService.Settings.CurrentRegion.TwoLetterISORegionName then
+                        store.HeaderIcon.Publish(Icons.Regular.Size24.Home())
+                    else
+                        store.HeaderIcon.Publish(Icons.Regular.Size24.Flag())
+
                     store.HeaderTitle.Publish $"""{localizer["StationsByCountry"]}: {regionInfo.EnglishName}"""
                     let! stationsResult = getStationsByCountryCode (None, countryCode, None)
                     publishStationsResult (store, stationsResult, emptyStations)

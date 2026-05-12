@@ -17,6 +17,7 @@ let tagsPage =
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     store.HeaderTitle.Publish localizer["Tags"]
+                    store.HeaderIcon.Publish(Icons.Regular.Size24.Tag())
 
                     do!
                         Async.Parallel [ loadCountries (store, listsService); loadTasks (store, listsService) ]

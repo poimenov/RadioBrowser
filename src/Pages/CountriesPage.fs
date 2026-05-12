@@ -19,6 +19,7 @@ let countriesPage =
             hook.AddFirstAfterRenderTask(fun _ ->
                 task {
                     store.HeaderTitle.Publish localizer["Countries"]
+                    store.HeaderIcon.Publish(Icons.Regular.Size24.Flag())
 
                     do!
                         Async.Parallel [ loadCountries (store, listsService); loadTasks (store, listsService) ]
