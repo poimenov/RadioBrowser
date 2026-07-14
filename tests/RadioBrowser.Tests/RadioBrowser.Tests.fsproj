@@ -4,9 +4,6 @@
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\src\RadioBrowser.fsproj" />
-  </ItemGroup>
-  <ItemGroup>
     <Compile Include="Extensions\FunBlazorTestExtensions.fs" />
     <Compile Include="Helpers\TestData.fs" />
     <Compile Include="Fixtures\TestFixtures.fs" />
@@ -26,10 +23,13 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="FsUnit.xUnit" Version="4.2.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.7" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.7" />
-    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.7" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.9" />
     <PackageReference Include="bunit" Version="2.5.3" />
     <PackageReference Include="Moq" Version="4.20.70" />    
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\RadioBrowser\RadioBrowser.fsproj" />
   </ItemGroup>
 </Project>

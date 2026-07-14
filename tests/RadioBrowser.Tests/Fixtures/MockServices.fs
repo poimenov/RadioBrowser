@@ -7,8 +7,10 @@ open Microsoft.Extensions.Localization
 module MockServices =
 
     /// Creates a mock IStringLocalizer with specified resource values
-    let createMockStringLocalizer (resources: Map<string, string>) : Mock<IStringLocalizer<SharedResources>> =
-        let mock = Mock<IStringLocalizer<SharedResources>>()
+    let createMockStringLocalizer
+        (resources: Map<string, string>)
+        : Mock<IStringLocalizer<RadioBrowser.Interfaces.SharedResources>> =
+        let mock = Mock<IStringLocalizer<RadioBrowser.Interfaces.SharedResources>>()
 
         mock
             .Setup(fun x -> x.Item(It.IsAny<string>()))
@@ -21,14 +23,16 @@ module MockServices =
         mock
 
     /// Creates a mock IPlatformService for testing
-    let createMockPlatformService (returnPlatform: Platform) : Mock<IPlatformService> =
-        let mock = Mock<IPlatformService>()
+    let createMockPlatformService
+        (returnPlatform: RadioBrowser.Interfaces.Platform)
+        : Mock<RadioBrowser.Interfaces.IPlatformService> =
+        let mock = Mock<RadioBrowser.Interfaces.IPlatformService>()
         mock.Setup(fun m -> m.GetPlatform()).Returns(returnPlatform) |> ignore
         mock
 
     /// Creates a mock IProcessService for testing
-    let createMockProcessService () : Mock<IProcessService> =
-        let mock = Mock<IProcessService>()
+    let createMockProcessService () : Mock<RadioBrowser.Interfaces.IProcessService> =
+        let mock = Mock<RadioBrowser.Interfaces.IProcessService>()
 
         mock.Setup(fun m -> m.Run(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>(fun cmd args -> ())
         |> ignore
@@ -36,8 +40,8 @@ module MockServices =
         mock
 
     /// Creates a mock ILinkOpeningService for testing
-    let createMockLinkOpeningService () : Mock<ILinkOpeningService> =
-        let mock = Mock<ILinkOpeningService>()
+    let createMockLinkOpeningService () : Mock<RadioBrowser.Interfaces.ILinkOpeningService> =
+        let mock = Mock<RadioBrowser.Interfaces.ILinkOpeningService>()
 
         mock.Setup(fun m -> m.OpenUrl(It.IsAny<string>())).Callback<string>(fun url -> ())
         |> ignore
@@ -45,7 +49,7 @@ module MockServices =
         mock
 
     /// Creates a mock IApiUrlProvider for testing
-    let createMockApiUrlProvider (returnUrl: string) : Mock<IApiUrlProvider> =
-        let mock = Mock<IApiUrlProvider>()
+    let createMockApiUrlProvider (returnUrl: string) : Mock<RadioBrowser.Interfaces.IApiUrlProvider> =
+        let mock = Mock<RadioBrowser.Interfaces.IApiUrlProvider>()
         mock.Setup(fun m -> m.GetUrl()).Returns(returnUrl) |> ignore
         mock

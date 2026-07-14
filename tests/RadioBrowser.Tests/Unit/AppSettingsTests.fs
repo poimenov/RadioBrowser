@@ -2,10 +2,10 @@ namespace RadioBrowser.Tests.Unit
 
 open Xunit
 open FsUnit.Xunit
-open RadioBrowser
+open RadioBrowser.AppSettings
 
 module AppSettingsTests =
-    
+
     [<Fact>]
     let ``AppSettings.ApplicationName should be RadioBrowser`` () =
         AppSettings.ApplicationName |> should equal "RadioBrowser"
@@ -20,7 +20,8 @@ module AppSettingsTests =
 
     [<Fact>]
     let ``AppSettings data base file name should contain application name`` () =
-        (AppSettings.DataBaseFileName.Contains(AppSettings.ApplicationName)) |> should be True
+        (AppSettings.DataBaseFileName.Contains(AppSettings.ApplicationName))
+        |> should be True
 
     [<Fact>]
     let ``AppSettings.AppDataPath should not be empty`` () =
@@ -33,7 +34,9 @@ module AppSettingsTests =
     [<Fact>]
     let ``AppSettings.ConnectionString should contain Filename`` () =
         (AppSettings.ConnectionString.Contains("Filename=")) |> should be True
-        (AppSettings.ConnectionString.Contains(AppSettings.DataBasePath)) |> should be True
+
+        (AppSettings.ConnectionString.Contains(AppSettings.DataBasePath))
+        |> should be True
 
     [<Fact>]
     let ``AppSettings instance should have default values`` () =
@@ -57,11 +60,11 @@ module AppSettingsTests =
         let newWidth = 1920
         let newHeight = 1080
         let newLimit = 50
-        
+
         settings.WindowWidth <- newWidth
         settings.WindowHeight <- newHeight
         settings.LimitCount <- newLimit
-        
+
         settings.WindowWidth |> should equal newWidth
         settings.WindowHeight |> should equal newHeight
         settings.LimitCount |> should equal newLimit

@@ -3,7 +3,7 @@ namespace RadioBrowser.Tests.Unit
 open Xunit
 open Bunit
 open FsUnit.Xunit
-open RadioBrowser
+open RadioBrowser.AppSettings
 open RadioBrowser.Tests
 
 module AppTests =
@@ -17,7 +17,7 @@ module AppTests =
             MockServices.createMockStringLocalizer ([ "IsLoading", "Loading..." ] |> Map.ofList)
 
         // Act
-        let fragment = loadingState mockStringLocalizer.Object
+        let fragment = RadioBrowser.WatchElement.loadingState mockStringLocalizer.Object
 
         // Assert
         use result = context.RenderNode fragment
@@ -35,7 +35,7 @@ module AppTests =
         settings.HideBroken <- false
 
         // Act
-        let result = getParameters (offset, settings)
+        let result = RadioBrowser.WatchElement.getParameters (offset, settings)
 
         // Assert
         result.Offset |> should equal offset
@@ -51,7 +51,7 @@ module AppTests =
         settings.HideBroken <- true
 
         // Act
-        let result = getParameters (offset, settings)
+        let result = RadioBrowser.WatchElement.getParameters (offset, settings)
 
         // Assert
         result.Offset |> should equal 0
@@ -65,7 +65,7 @@ module AppTests =
         let testUrl = "http://example.com/favicon.ico"
 
         // Act
-        let fragment = stationIcon testUrl
+        let fragment = RadioBrowser.StationItem.stationIcon testUrl
         use result = context.RenderNode fragment
 
         // Assert
@@ -81,7 +81,7 @@ module AppTests =
         use context = TestFixtures.createBunitContext ()
 
         // Act
-        let fragment = stationIcon iconUrl
+        let fragment = RadioBrowser.StationItem.stationIcon iconUrl
         use result = context.RenderNode fragment
 
         // Assert

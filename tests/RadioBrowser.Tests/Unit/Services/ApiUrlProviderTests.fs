@@ -3,7 +3,7 @@ namespace RadioBrowser.Tests.Unit.Services
 open Xunit
 open FsUnit.Xunit
 open Moq
-open RadioBrowser
+open RadioBrowser.ApiUrlProvider
 open RadioBrowser.Tests
 
 module ApiUrlProviderTests =
@@ -12,12 +12,12 @@ module ApiUrlProviderTests =
         let mockLogger = TestFixtures.createMockLogger<ApiUrlProvider> ()
         let provider = new ApiUrlProvider(mockLogger)
 
-        provider |> should be (instanceOfType<IApiUrlProvider>)
+        provider |> should be instanceOfType<RadioBrowser.Interfaces.IApiUrlProvider>
 
     [<Fact>]
     let ``ApiUrlProvider.GetUrl should return a non-empty string`` () =
         let mockLogger = TestFixtures.createMockLogger<ApiUrlProvider> ()
-        let provider = new ApiUrlProvider(mockLogger) :> IApiUrlProvider
+        let provider = new ApiUrlProvider(mockLogger) :> RadioBrowser.Interfaces.IApiUrlProvider
 
         let url = provider.GetUrl()
 
@@ -26,7 +26,7 @@ module ApiUrlProviderTests =
     [<Fact>]
     let ``ApiUrlProvider.GetUrl should return a valid domain`` () =
         let mockLogger = TestFixtures.createMockLogger<ApiUrlProvider> ()
-        let provider = new ApiUrlProvider(mockLogger) :> IApiUrlProvider
+        let provider = new ApiUrlProvider(mockLogger) :> RadioBrowser.Interfaces.IApiUrlProvider
 
         let url = provider.GetUrl()
 
@@ -35,7 +35,7 @@ module ApiUrlProviderTests =
     [<Fact>]
     let ``ApiUrlProvider.GetUrl should be consistent`` () =
         let mockLogger = TestFixtures.createMockLogger<ApiUrlProvider> ()
-        let provider = new ApiUrlProvider(mockLogger) :> IApiUrlProvider
+        let provider = new ApiUrlProvider(mockLogger) :> RadioBrowser.Interfaces.IApiUrlProvider
 
         let url1 = provider.GetUrl()
         let url2 = provider.GetUrl()

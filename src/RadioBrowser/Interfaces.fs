@@ -27,16 +27,36 @@ type IApiUrlProvider =
     abstract member GetUrl: unit -> string
 
 type StationsProvider =
-    JsonProvider<Sample="../src/json/Stations.json", SampleIsList=true, RootName="Stations", Encoding="utf-8">
+    JsonProvider<
+        Sample="../../src/RadioBrowser/json/Stations.json",
+        SampleIsList=true,
+        RootName="Stations",
+        Encoding="utf-8"
+     >
 
 type CountriesProvider =
-    JsonProvider<Sample="../src/json/Countries.json", SampleIsList=true, RootName="Countries", Encoding="utf-8">
+    JsonProvider<
+        Sample="../../src/RadioBrowser/json/Countries.json",
+        SampleIsList=true,
+        RootName="Countries",
+        Encoding="utf-8"
+     >
 
 type LanguagesProvider =
-    JsonProvider<Sample="../src/json/Languages.json", SampleIsList=true, RootName="Languages", Encoding="utf-8">
+    JsonProvider<
+        Sample="../../src/RadioBrowser/json/Languages.json",
+        SampleIsList=true,
+        RootName="Languages",
+        Encoding="utf-8"
+     >
 
 type NameAndCountProvider =
-    JsonProvider<Sample="../src/json/NameAndCount.json", SampleIsList=true, RootName="NameAndCount", Encoding="utf-8">
+    JsonProvider<
+        Sample="../../src/RadioBrowser/json/NameAndCount.json",
+        SampleIsList=true,
+        RootName="NameAndCount",
+        Encoding="utf-8"
+     >
 
 type GetStationParameters(offset: int, limit: int, hidebroken: bool) =
     member _.Offset = offset
