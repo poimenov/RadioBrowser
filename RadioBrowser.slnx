@@ -1,4 +1,10 @@
 <Solution>
-  <Project Path="src\RadioBrowser\RadioBrowser.fsproj" />
-  <Project Path="tests\RadioBrowser.Tests\RadioBrowser.Tests.fsproj" />
+  <Folder Name="/src/">
+    <Project Path="src/RadioBrowser/RadioBrowser.fsproj" />
+    <Project Path="src/RadioBrowser.PluginContract/RadioBrowser.PluginContract.csproj" />
+    <Project Path="src/RadioBrowser.Z3FmPlugin/RadioBrowser.Z3FmPlugin.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RadioBrowser.Tests/RadioBrowser.Tests.fsproj" />
+  </Folder>
 </Solution>

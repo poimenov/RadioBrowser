@@ -3,6 +3,7 @@ module Program
 open System
 open System.Globalization
 open System.IO
+open System.Net.Http
 open Microsoft.Extensions.Configuration
 open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.Logging
@@ -66,6 +67,16 @@ let main args =
     |> ignore
 
     builder.Services.AddScoped<IHistoryDataAccess, HistoryDataAccess>() |> ignore
+    builder.Services.AddSingleton<IPluginService, PluginService>() |> ignore
+
+    // builder.Services.AddSingleton<IPluginService, PluginService>(fun sp ->
+    //     let factory = sp.GetRequiredService<IHttpClientFactory>()
+    //     PluginService(factory) :> IPluginService
+    // ) |> ignore 
+    
+    // builder.Services.AddSingleton<ISongDownloaderPlugin>(fun sp ->
+    //     let pluginService = sp.GetRequiredService<IPluginService>()
+    //     pluginService.GetPluginByName("YouTube Music")) |> ignore    
 
     let application = builder.Build()
     AppDomain.CurrentDomain.SetData("DataDirectory", AppSettings.AppDataPath)

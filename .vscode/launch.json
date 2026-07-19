@@ -9,9 +9,9 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "Build: RadioBrowser",
-            "program": "${workspaceFolder}/src/bin/Debug/net10.0/RadioBrowser.dll",
+            "program": "${workspaceFolder}/src/RadioBrowser/bin/Debug/net10.0/RadioBrowser.dll",
             "args": [],
-            "cwd": "${workspaceFolder}/src",
+            "cwd": "${workspaceFolder}/src/RadioBrowser",
             "stopAtEntry": false,
             "console": "internalConsole"
         }

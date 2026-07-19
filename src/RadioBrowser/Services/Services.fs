@@ -13,7 +13,8 @@ type Services
         localizer: IStringLocalizer<SharedResources>,
         metadataService: IMetadataService,
         jsRuntime: IJSRuntime,
-        historyDataAccess: IHistoryDataAccess
+        historyDataAccess: IHistoryDataAccess,
+        dialogService: IDialogService
     ) =
     interface IServices with
         member _.ToastService = toastService
@@ -27,3 +28,4 @@ type Services
         member _.MetadataService: IMetadataService = metadataService
         member _.JsRuntime: IJSRuntime = jsRuntime
         member _.HistoryDataAccess = historyDataAccess
+        member _.DialogService = dialogService

@@ -124,8 +124,14 @@ let app =
                     })
 
                 FluentDesignTheme'' { StorageName "theme" }
-                FluentToastProvider'' { MaxToastCount 3 }
+
+                FluentToastProvider'' {
+                    MaxToastCount 3
+                    Position ToastPosition.TopLeft
+                }
+
                 FluentMenuProvider''
+                FluentDialogProvider''
 
                 FluentLayout'' {
                     appHeader

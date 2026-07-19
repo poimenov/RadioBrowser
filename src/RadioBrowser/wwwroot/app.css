@@ -276,3 +276,17 @@ fluent-menu-item > fluent-menu {
     overflow: auto;
 }
 
+.selected-row {
+    background-color: var(--accent-fill-rest) !important;
+    color: var(--foreground-on-accent-hover) !important;
+    border-left: 4px solid var(--accent-fill-rest);
+}
+
+.fluent-data-grid-row {
+    cursor: pointer;
+}
+
+.fluent-dialog-body {
+    overflow-y: hidden !important;
+}
+

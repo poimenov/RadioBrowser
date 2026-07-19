@@ -2,9 +2,11 @@
 module RadioBrowser.Types
 
 open System
-open Fun.Blazor
-open Microsoft.FluentUI.AspNetCore.Components
 open System.Linq
+open Microsoft.Extensions.Localization
+open Microsoft.FluentUI.AspNetCore.Components
+open Fun.Blazor
+open RadioBrowser.PluginContract
 
 type SelectedStation =
     | NotSelected
@@ -78,3 +80,10 @@ type Github() =
         )
 
 let emptyStations = Enumerable.Empty<Station>()
+
+type DialogData<'T>(data: 'T) =
+    member val Data = data with get, set
+
+type DownloadPanelData(downloader: ISongDownloaderPlugin, search: string) =
+    member val Downloader = downloader with get, set
+    member val Search = search with get, set

@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <Version>1.0.5</Version>
+    <Version>1.0.6</Version>
     <NoDefaultLaunchSettingsFile>True</NoDefaultLaunchSettingsFile>
     <PublishSingleFile>true</PublishSingleFile>
     <ApplicationIcon>wwwroot/favicon.ico</ApplicationIcon>
@@ -20,6 +20,7 @@
     <Compile Include="Services/StationsService.fs" />
     <Compile Include="Services/ListsService.fs" />
     <Compile Include="Services/MetadataService.fs" />
+    <Compile Include="Services/PluginService.fs" />    
     <Compile Include="Services/Services.fs" />
     <Compile Include="Types.fs" />
     <Compile Include="Components/StationItem.fs" />
@@ -28,7 +29,8 @@
     <Compile Include="Components/Player.fs" />
     <Compile Include="Components/Navigation.fs" />
     <Compile Include="Components/AppHeader.fs" />
-    <Compile Include="Components/AppFooter.fs" />
+    <Compile Include="Components/DownloadPanel.fs" />
+    <Compile Include="Components/AppFooter.fs" />    
     <Compile Include="Pages/StationsByCountry.fs" />
     <Compile Include="Pages/StationsByTag.fs" />    
     <Compile Include="Pages/HomePage.fs" />
@@ -61,5 +63,9 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.*" />
     <PackageReference Include="Microsoft.Extensions.Localization" Version="10.0.*" />
     <PackageReference Include="Microsoft.Extensions.Logging.Log4Net.AspNetCore" Version="8.0.0" />
+    <PackageReference Include="System.Composition" Version="10.0.10" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\RadioBrowser.PluginContract\RadioBrowser.PluginContract.csproj" />
   </ItemGroup>
 </Project>

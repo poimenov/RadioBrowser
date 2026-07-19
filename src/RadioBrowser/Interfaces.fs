@@ -2,11 +2,13 @@
 module RadioBrowser.Interfaces
 
 open System
+open System.Collections.Generic
 open System.Threading.Tasks
 open Microsoft.FluentUI.AspNetCore.Components
 open Microsoft.Extensions.Localization
 open Microsoft.JSInterop
 open FSharp.Data
+open RadioBrowser.PluginContract
 
 type Platform =
     | Windows
@@ -166,3 +168,8 @@ type IServices =
     abstract member Localizer: IStringLocalizer<SharedResources>
     abstract member MetadataService: IMetadataService
     abstract member JsRuntime: IJSRuntime
+    abstract member DialogService: IDialogService
+
+type IPluginService =
+    abstract member GetPlugins: unit -> IReadOnlyList<ISongDownloaderPlugin>
+    abstract member GetPluginByName: string -> ISongDownloaderPlugin option

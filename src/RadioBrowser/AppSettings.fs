@@ -62,6 +62,11 @@ type public AppSettings() =
     // The prefer language of the audio stream, e.g., "german,english", etc. (https://fi1.api.radio-browser.info/json/languages)
     member val Language: string = null with get, set
 
+    member val DownloadsFolderPath: string =
+        Path.Combine(Environment.GetFolderPath Environment.SpecialFolder.MyMusic, AppSettings.ApplicationName) with get, set
+
+    member val SearchDownloadTimeout = 10.0 with get, set
+
     member this.Save() =
         let filePath =
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppSettings.AppConfigFileName)
