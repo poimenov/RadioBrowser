@@ -45,7 +45,7 @@ let appFooter =
 
                         FluentIcon'' {
                             slot' "start"
-                            title' "Search for downloading"
+                            title' (string (services.Localizer["SearchForDownloading"]))
                             Value(Icons.Regular.Size20.Search())
                             style' $"margin-right: 15px;cursor: pointer;display: {displayStyle};"
 
@@ -62,7 +62,14 @@ let appFooter =
                                                 DialogData<DownloadPanelData>(DownloadPanelData(downloader, t))
 
                                             let dialogParams = DialogParameters<DialogData<DownloadPanelData>>()
-                                            dialogParams.Title <- $"Search on {downloader.PluginName}"
+
+                                            dialogParams.Title <-
+                                                String.Concat(
+                                                    string (services.Localizer["SearchOn"]),
+                                                    " ",
+                                                    downloader.PluginName
+                                                )
+
                                             dialogParams.Width <- "450px"
                                             dialogParams.Alignment <- HorizontalAlignment.Right
 

@@ -100,7 +100,7 @@
         <value>Радиостанция</value>
     </data> 
     <data name="Title" xml:space="preserve">
-        <value>Название трека</value>
+        <value>Название</value>
     </data>    
     <data name="SearchOnYouTube" xml:space="preserve">
         <value>Искать на YouTube</value>
@@ -116,5 +116,35 @@
     </data>     
     <data name="ErrorInvokePlayAudio" xml:space="preserve">
         <value>Не удалось вызвать playAudio</value>
-    </data>     
+    </data> 
+    <data name="SearchPlaceholder" xml:space="preserve">
+        <value>Название композиции</value>
+    </data>
+    <data name="Search" xml:space="preserve">
+        <value>Поиск</value>
+    </data>
+    <data name="NoResultsFound" xml:space="preserve">
+        <value>Нет результатов</value>
+    </data>
+    <data name="Artist" xml:space="preserve">
+        <value>Артист</value>
+    </data>
+    <data name="Duration" xml:space="preserve">
+        <value>Длительность</value>
+    </data> 
+    <data name="DownloadSuccessMessage" xml:space="preserve">
+        <value>Файл {0} был успешно загружен в папку: {1}</value>
+    </data> 
+    <data name="Download" xml:space="preserve">
+        <value>Скачать</value>
+    </data>
+    <data name="Cancel" xml:space="preserve">
+        <value>Отмена</value>
+    </data> 
+    <data name="SearchForDownloading" xml:space="preserve">
+        <value>Поиск для скачивания</value>
+    </data> 
+    <data name="SearchOn" xml:space="preserve">
+        <value>Поиск на</value>
+    </data>                   
 </root>

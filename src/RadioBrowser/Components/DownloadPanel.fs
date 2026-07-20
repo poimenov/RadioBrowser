@@ -92,9 +92,14 @@ type DownloadPanel() =
                 this.Content.Data.Downloader.Download(track, this.Options.Value.DownloadsFolderPath, cts.Token)
 
             if result.Success then
-                this.ToastService.ShowSuccess
-                    $"The file {track.FileName} was successfully downloaded to the folder: {this.Options.Value.DownloadsFolderPath}"
-                |> ignore
+                let successMessage =
+                    String.Format(
+                        string (this.Localizer["DownloadSuccessMessage"]),
+                        track.FileName,
+                        this.Options.Value.DownloadsFolderPath
+                    )
+
+                this.ToastService.ShowSuccess successMessage |> ignore
             else
                 this.Logger.LogError(result.Exception, result.Message)
                 this.ToastService.ShowError result.Message |> ignore
@@ -142,7 +147,7 @@ type DownloadPanel() =
                         Appearance Appearance.Accent
                         OnClick(fun _ -> this.PerfomSearch this.Content.Data.Search)
 
-                        "Search"
+                        this.Localizer["Search"]
                     }
                 }
 
@@ -154,7 +159,7 @@ type DownloadPanel() =
                         type' typeof<Track>
                         ShowHover true
                         Items tracks
-                        EmptyContent "No results found"
+                        EmptyContent(string (this.Localizer["NoResultsFound"]))
 
                         OnRowClick(fun row ->
                             this.SelectedTrack.Publish row.Item |> ignore
@@ -170,17 +175,21 @@ type DownloadPanel() =
                                 "")
 
                         TemplateColumn'' {
-                            title' "Artist"
+                            title' (string (this.Localizer["Artist"]))
+                            Tooltip true
+                            TooltipText(fun (t: Track) -> t.Artist)
                             ChildContent(fun (t: Track) -> fragment { t.Artist })
                         }
 
                         TemplateColumn'' {
-                            title' "Title"
+                            title' (string (this.Localizer["Title"]))
+                            Tooltip true
+                            TooltipText(fun (t: Track) -> t.Title)
                             ChildContent(fun (t: Track) -> fragment { t.Title })
                         }
 
                         TemplateColumn'' {
-                            title' "Duration"
+                            title' (string (this.Localizer["Duration"]))
                             ChildContent(fun (t: Track) -> fragment { t.DisplayDuration })
                         }
                     }
@@ -200,14 +209,14 @@ type DownloadPanel() =
                     OnClick(fun _ ->
                         task { this.PerformDownload this.SelectedTrack.Value |> Async.AwaitTask |> ignore })
 
-                    "Download"
+                    this.Localizer["Download"]
                 }
 
                 FluentButton'' {
                     Appearance Appearance.Neutral
                     disabled this.IsDownloading.Value
                     OnClick(fun _ -> task { this.Dialog.CancelAsync() |> Async.AwaitTask |> ignore })
-                    "Cancel"
+                    this.Localizer["Cancel"]
                 }
             }
         }
