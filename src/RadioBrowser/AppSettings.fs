@@ -44,6 +44,7 @@ type public AppSettings() =
     //bitrate, lastcheckok, lastchecktime, clicktimestamp, clickcount, clicktrend, changetimestamp, random
     member val DefaultOrder = "votes" with get, set
     member val ReverseOrder = true with get, set
+    member val SelectedDownloadPlugin = "Z3.FM" with get, set
 
     member this.GetTitleDelay
         with get () = getTitleTimeout

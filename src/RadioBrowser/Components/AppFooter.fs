@@ -2,11 +2,12 @@
 module RadioBrowser.AppFooter
 
 open System
+open Microsoft.Extensions.Options
 open Microsoft.FluentUI.AspNetCore.Components
 open Fun.Blazor
 
 let appFooter =
-    html.inject (fun (store: IShareStore, services: IServices, pluginService: IPluginService) ->
+    html.inject (fun (store: IShareStore, services: IServices, options: IOptions<AppSettings>, pluginService: IPluginService) ->
         FluentFooter'' {
             FluentAnchor'' {
                 Appearance Appearance.Hypertext
@@ -56,7 +57,13 @@ let appFooter =
                                         let plugins = pluginService.GetPlugins()
 
                                         if plugins.Count > 0 then
-                                            let downloader = plugins.[0]
+                                            let downloader = 
+                                                if String.IsNullOrWhiteSpace(options.Value.SelectedDownloadPlugin) |> not then
+                                                    match pluginService.GetPluginByName(options.Value.SelectedDownloadPlugin) with
+                                                    | Some p -> p
+                                                    | None -> plugins.[0]
+                                                else
+                                                    plugins.[0]
 
                                             let content =
                                                 DialogData<DownloadPanelData>(DownloadPanelData(downloader, t))
