@@ -13,6 +13,7 @@ let player =
         adapt {
             let! selectedStation = store.SelectedStation
             let! isPlaying = store.IsPlaying
+            let! _cultureName = store.CultureName
             let! visiblePopover, setVisiblePopover = cval(false).WithSetter()
             let! volume, setVolume = cval(store.Volume.Value).WithSetter()
             let! selectedStationIsFavorite = store.SelectedStationIsFavorite

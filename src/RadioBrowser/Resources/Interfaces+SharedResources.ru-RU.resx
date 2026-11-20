@@ -8,7 +8,10 @@
     </data>   
     <data name="AccentColor" xml:space="preserve">
         <value>Цвет акцента</value>
-    </data>        
+    </data>
+    <data name="Language" xml:space="preserve">
+        <value>Язык</value>
+    </data>
     <data name="Home" xml:space="preserve">
         <value>Домашняя</value>
     </data>     

@@ -1,7 +1,7 @@
 [<AutoOpen>]
 module RadioBrowser.AppHeader
 
-open Microsoft.Extensions.Localization
+open Microsoft.Extensions.Options
 open Microsoft.FluentUI.AspNetCore.Components
 open Microsoft.JSInterop
 open FSharp.Data.Adaptive
@@ -11,12 +11,15 @@ let appHeader =
     html.inject
         (fun
             (store: IShareStore,
-             los: ILinkOpeningService,
-             jsRuntime: IJSRuntime,
+             services: IServices,
              themeService: IThemeService,
-             localizer: IStringLocalizer<SharedResources>) ->
+             options: IOptions<AppSettings>) ->
+            let los = services.LinkOpeningService
+            let jsRuntime = services.JsRuntime
+            let localizer = services.Localizer
             let menuOpenState = cval false
             let accentMenuOpenState = cval false
+            let languageMenuOpenState = cval false
 
             header {
                 class' "app-header"
@@ -46,8 +49,10 @@ let appHeader =
                     adapt {
                         let! theme = store.Theme
                         let! accentColor = store.AccentColor
+                        let! cultureName = store.CultureName
                         let! menuOpen, setMenuOpen = menuOpenState.WithSetter()
                         let! accentMenuOpen, setAccentMenuOpen = accentMenuOpenState.WithSetter()
+                        let! languageMenuOpen, setLanguageMenuOpen = languageMenuOpenState.WithSetter()
 
                         let colors =
                             [ "Blue", "#036ac4"
@@ -117,17 +122,50 @@ let appHeader =
                                 setMenuOpen opened
 
                                 if not opened then
-                                    setAccentMenuOpen false)
+                                    setAccentMenuOpen false
+                                    setLanguageMenuOpen false)
                             style' "width:210px;"
 
-                            if accentMenuOpen then
+                            if languageMenuOpen then
+                                button {
+                                    type' "button"
+                                    class' "settings-menu-item"
+                                    onclick (fun _ -> setLanguageMenuOpen false)
+
+                                    FluentIcon'' { Value(Icons.Regular.Size20.ChevronLeft()) }
+                                    span { localizer["Language"] }
+                                }
+
+                                for (languageName, culture) in [ "English", "en-US"; "Русский", "ru-RU" ] do
+                                    button {
+                                        type' "button"
+                                        class' "settings-menu-item"
+
+                                        onclick (fun _ ->
+                                            task {
+                                                options.Value.CultureName <- culture
+                                                options.Value.ApplyCulture()
+                                                lock options.Value (fun () -> options.Value.Save())
+                                                store.CultureName.Publish culture
+                                                setLanguageMenuOpen false
+                                            })
+
+                                        span {
+                                            style' "flex:1;"
+                                            languageName
+                                        }
+
+                                        if cultureName = culture then
+                                            FluentIcon'' { Value(Icons.Regular.Size20.Checkmark()) }
+                                    }
+                            elif accentMenuOpen then
                                 button {
                                     type' "button"
                                     class' "settings-menu-item"
                                     onclick (fun _ -> setAccentMenuOpen false)
 
                                     FluentIcon'' { Value(Icons.Regular.Size20.ChevronLeft()) }
-                                    span { localizer["Accent Color"] }
+                                    span { localizer["AccentColor"] }
                                 }
 
                                 colorItems
@@ -182,7 +220,25 @@ let appHeader =
 
                                     span {
                                         style' "flex:1;"
-                                        localizer["Accent Color"]
+                                        localizer["AccentColor"]
+                                    }
+
+                                    FluentIcon'' { Value(Icons.Regular.Size20.ChevronRight()) }
+                                }
+
+                                button {
+                                    type' "button"
+                                    id "languageMenuButton"
+                                    class' "settings-menu-item"
+                                    onclick (fun _ -> setLanguageMenuOpen true)
+
+                                    FluentIcon'' {
+                                        Value(Icons.Regular.Size20.LocalLanguage())
+                                    }
+
+                                    span {
+                                        style' "flex:1;"
+                                        localizer["Language"]
                                     }
 
                                     FluentIcon'' { Value(Icons.Regular.Size20.ChevronRight()) }

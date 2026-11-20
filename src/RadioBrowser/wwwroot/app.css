@@ -102,6 +102,7 @@ body {
 
 .download-panel-dialog-body::part(content) {
     display: flex;
+    flex-direction: column;
     min-height: 0;
     overflow: hidden;
     padding: 0 8px 8px;
@@ -109,24 +110,37 @@ body {
 
 .download-panel-dialog-body {
     min-height: 0;
+    overflow: hidden;
 }
 
 .download-panel-content {
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
     min-height: 0;
     overflow: hidden;
     padding: 4px;
 }
 
 .download-grid-scroll {
-    flex: 0 1 auto;
+    flex: 1 1 auto;
     height: calc(100dvh - 220px);
     max-height: calc(100dvh - 220px);
     min-height: 120px;
-    overflow: auto;
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+    overflow-y: auto;
+    overflow-x: hidden;
     border: 1px solid var(--neutral-stroke-rest);
+}
+
+.download-grid-scroll .fluent-data-grid {
+    width: 100%;
+    max-width: 100%;
 }
 
 .download-panel-actions {

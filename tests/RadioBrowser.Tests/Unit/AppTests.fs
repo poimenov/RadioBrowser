@@ -1,12 +1,47 @@
 namespace RadioBrowser.Tests.Unit
 
+open System.Globalization
 open Xunit
 open Bunit
 open FsUnit.Xunit
+open Microsoft.Extensions.DependencyInjection
+open Microsoft.Extensions.Localization
 open RadioBrowser.AppSettings
+open RadioBrowser.Services
 open RadioBrowser.Tests
 
 module AppTests =
+
+    [<Fact>]
+    let ``localizer should use Russian resources for ru-RU culture`` () =
+        let services = ServiceCollection()
+        services.AddLogging() |> ignore
+        services.AddLocalization(fun options -> options.ResourcesPath <- "Resources") |> ignore
+        use serviceProvider = services.BuildServiceProvider()
+
+        let localizer =
+            serviceProvider.GetRequiredService<IStringLocalizer<RadioBrowser.Interfaces.SharedResources>>()
+
+        let previousCulture = CultureInfo.CurrentUICulture
+
+        try
+            CultureInfo.CurrentUICulture <- CultureInfo.GetCultureInfo("en-US")
+            let mutable activeCulture = CultureInfo.GetCultureInfo("en-US")
+
+            let cultureAwareLocalizer =
+                CultureAwareStringLocalizer<RadioBrowser.Interfaces.SharedResources>(
+                    localizer,
+                    fun () -> activeCulture
+                )
+                :> IStringLocalizer<RadioBrowser.Interfaces.SharedResources>
+
+            activeCulture <- CultureInfo.GetCultureInfo("ru-RU")
+            cultureAwareLocalizer["Language"].Value |> should equal "Язык"
+
+            activeCulture <- CultureInfo.GetCultureInfo("en-US")
+            cultureAwareLocalizer["Language"].Value |> should equal "Language"
+        finally
+            CultureInfo.CurrentUICulture <- previousCulture
 
     [<Fact>]
     let ``loadingState should return correct value`` () =

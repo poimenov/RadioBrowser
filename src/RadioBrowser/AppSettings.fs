@@ -9,7 +9,9 @@ open System.Text.Json.Serialization
 open Microsoft.FluentUI.AspNetCore.Components
 
 type public AppSettings() =
+    static let mutable activeCulture = CultureInfo.GetCultureInfo("en-US")
     let mutable getTitleTimeout = 5000
+
     static member ApplicationName = "RadioBrowser"
     static member FavIconFileName = "favicon.ico"
     static member DataBaseFileName = $"{AppSettings.ApplicationName}.db"
@@ -33,6 +35,11 @@ type public AppSettings() =
 
     static member WwwRootFolderPath =
         Path.Combine(AppContext.BaseDirectory, AppSettings.WwwRootFolderName)
+
+    static member ActiveCulture = activeCulture
+
+    static member SetActiveCulture(cultureName: string) =
+        activeCulture <- CultureInfo.GetCultureInfo(cultureName)
 
     member val WindowWidth: int = 1024 with get, set
     member val WindowHeight: int = 768 with get, set
@@ -67,6 +74,14 @@ type public AppSettings() =
         Path.Combine(Environment.GetFolderPath Environment.SpecialFolder.MyMusic, AppSettings.ApplicationName) with get, set
 
     member val SearchDownloadTimeout = 10.0 with get, set
+
+    member this.ApplyCulture() =
+        let culture = CultureInfo.GetCultureInfo(this.CultureName)
+        AppSettings.SetActiveCulture this.CultureName
+        CultureInfo.DefaultThreadCurrentCulture <- culture
+        CultureInfo.DefaultThreadCurrentUICulture <- culture
+        CultureInfo.CurrentCulture <- culture
+        CultureInfo.CurrentUICulture <- culture
 
     member this.Save() =
         let filePath =

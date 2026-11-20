@@ -19,6 +19,7 @@ let appFooter =
 
             adapt {
                 let! title = store.Title
+                let! _cultureName = store.CultureName
                 let locTitle = services.Localizer["NowPlaying"]
 
                 let sTitle =

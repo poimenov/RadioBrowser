@@ -43,6 +43,9 @@ type DownloadPanel() =
     [<Inject>]
     member val Options: IOptions<AppSettings> = Unchecked.defaultof<_> with get, set
 
+    [<Inject>]
+    member val Store: IShareStore = Unchecked.defaultof<_> with get, set
+
     [<CascadingParameter>]
     member val DialogInstance = Unchecked.defaultof<IDialogInstance> with get, set
 
@@ -121,6 +124,7 @@ type DownloadPanel() =
     override this.Render() : NodeRenderFragment =
         let body = adapt {
             let tracks = this.SearchResults.Value.AsQueryable<Track>()
+            let! _cultureName = this.Store.CultureName
 
             div {
                 class' "download-panel-content"

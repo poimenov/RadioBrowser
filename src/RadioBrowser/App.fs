@@ -3,6 +3,7 @@ module RadioBrowser.App
 
 open System
 open System.Collections.Generic
+open System.Globalization
 open Microsoft.AspNetCore.Components.Web
 open Microsoft.FluentUI.AspNetCore.Components
 open Microsoft.JSInterop
@@ -56,17 +57,18 @@ let rec getTitle (store: IShareStore, metadataService: IMetadataService, history
         return! getTitle (store, metadataService, historyDataAccess)
     }
 
-let routes =
-    html.route
-        [| routeCi "/stationsByVotes" byVotesPage
-           routeCi "/stationsByClicks" byClicksPage
-           routeCi "/favorites" favoriteStations
-           routeCi "/countries" countriesPage
-           routeCif "/stationsByCountry/%s" (fun x -> stationsByCountry (x))
-           routeCi "/tags" tagsPage
-           routeCif "/stationsByTag/%s" (fun x -> stationsByTag (x))
-           routeCi "/history" historyPage
-           routeAny homePage |]
+let private routeTable =
+    [| routeCi "/stationsByVotes" byVotesPage
+       routeCi "/stationsByClicks" byClicksPage
+       routeCi "/favorites" favoriteStations
+       routeCi "/countries" countriesPage
+       routeCif "/stationsByCountry/%s" (fun x -> stationsByCountry (x))
+       routeCi "/tags" tagsPage
+       routeCif "/stationsByTag/%s" (fun x -> stationsByTag (x))
+       routeCi "/history" historyPage
+       routeAny homePage |]
+
+let private routes cultureName = html.route (routeTable, Some(box cultureName))
 
 let app =
     html.inject
@@ -96,6 +98,7 @@ let app =
 
                     store.Theme.Publish(if theme = "dark" then Dark else Light)
                     store.AccentColor.Publish accentColor
+                    store.CultureName.Publish services.StationsService.Settings.CultureName
 
                     store.IsMenuOpen.Publish(window.Width > 800)
 
@@ -149,6 +152,10 @@ let app =
 
                 adapt {
                     let! theme = store.Theme
+                    let! cultureName = store.CultureName
+                    let culture = CultureInfo.GetCultureInfo cultureName
+                    CultureInfo.CurrentCulture <- culture
+                    CultureInfo.CurrentUICulture <- culture
 
                     FluentProviders''
 
@@ -235,7 +242,7 @@ let app =
                                             class' "content"
                                             style' styleHeight
 
-                                            routes
+                                            routes cultureName
                                         }
 
                                         if selectedStation <> NotSelected then

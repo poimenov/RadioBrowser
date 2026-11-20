@@ -13,6 +13,7 @@ let navmenus =
             let! stationsState = store.Stations
             let! tagsState = store.Tags
             let! countriesState = store.Countries
+            let! _cultureName = store.CultureName
 
             let isDisabled =
                 let ss =

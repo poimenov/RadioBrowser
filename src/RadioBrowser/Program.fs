@@ -6,6 +6,7 @@ open System.IO
 open System.Net.Http
 open Microsoft.Extensions.Configuration
 open Microsoft.Extensions.DependencyInjection
+open Microsoft.Extensions.Localization
 open Microsoft.Extensions.Logging
 open Microsoft.Extensions.Options
 open Microsoft.FluentUI.AspNetCore.Components
@@ -42,6 +43,14 @@ let main args =
     |> ignore
 
     builder.Services.AddLocalization(fun options -> options.ResourcesPath <- "Resources")
+    |> ignore
+
+    builder.Services.AddTransient<IStringLocalizer<SharedResources>>(fun serviceProvider ->
+        let factory = serviceProvider.GetRequiredService<IStringLocalizerFactory>()
+        let localizer = factory.Create(typeof<SharedResources>)
+
+        CultureAwareStringLocalizer<SharedResources>(localizer, fun () -> AppSettings.ActiveCulture)
+        :> IStringLocalizer<SharedResources>)
     |> ignore
 
     builder.Services.AddSingleton<IConfiguration> configuration |> ignore
@@ -92,8 +101,7 @@ let main args =
     | _ -> logger.LogWarning "Config file not found"
 
     let settings = application.Services.GetRequiredService<IOptions<AppSettings>>()
-    CultureInfo.DefaultThreadCurrentCulture <- CultureInfo.GetCultureInfo settings.Value.CultureName
-    CultureInfo.DefaultThreadCurrentUICulture <- CultureInfo.GetCultureInfo settings.Value.CultureName
+    settings.Value.ApplyCulture()
 
     // customize window
     application.MainWindow
