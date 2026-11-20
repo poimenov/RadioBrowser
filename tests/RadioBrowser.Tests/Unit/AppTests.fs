@@ -23,7 +23,7 @@ module AppTests =
         use result = context.RenderNode fragment
 
         result.Markup
-        |> should startWith "<div style=\"margin:auto;width:100px;\"><div>Loading...</div><fluent-progress-ring"
+        |> should startWith "<div style=\"margin:auto;width:100px;\"><div>Loading...</div><fluent-spinner"
 
 
     [<Fact>]

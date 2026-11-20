@@ -28,8 +28,8 @@ type StationsService(handler: IHttpHandler, dataAccess: IFavoritesDataAccess, op
               "language", options.Value.Language
           "offset", string parameters.Offset
           "limit", string parameters.Limit
-          "order", options.Value.DefaultOrder
-          "reverse", string options.Value.ReverseOrder
+          "order", "votes"
+          "reverse", "true"
           "hidebroken", string parameters.Hidebroken ]
 
     let getStations (result: Result<string, string>) =

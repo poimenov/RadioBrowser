@@ -57,13 +57,16 @@ let stationsByCountry (countryCode: string) =
                     class' "stations-list"
                     style' "padding:10px;"
 
-                    FluentSearch'' {
+                    input {
+                        type' "search"
+                        class' "search-input"
                         title' (string (localizer["StationNamePlaceholder"]))
-                        Placeholder(string (localizer["StationNamePlaceholder"]))
-                        Value searchString
+                        placeholder (string (localizer["StationNamePlaceholder"]))
+                        value searchString
 
-                        ValueChanged(fun s ->
+                        oninput (fun args ->
                             task {
+                                let s = string args.Value
                                 setSearchString s
 
                                 let! stationsResult =
@@ -76,30 +79,17 @@ let stationsByCountry (countryCode: string) =
                             })
                     }
 
-                    FluentAutocomplete'' {
-                        type' string
-                        SelectedOption'(selectedTag, setSelectedTag)
-                        autocomplete "off"
-                        Placeholder(string (localizer["Tags"]))
-                        Multiple false
+                    input {
+                        type' "search"
+                        class' "search-input"
+                        list "tag-options"
+                        placeholder (string (localizer["Tags"]))
+                        value (if isNull selectedTag then "" else selectedTag)
 
-                        OnOptionsSearch(fun (e: OptionsSearchEventArgs<string>) ->
+                        oninput (fun args ->
                             task {
-                                match store.Tags.Value with
-                                | Loaded tags ->
-                                    e.Items <-
-                                        tags
-                                        |> Array.filter (fun (x: NameAndCountProvider.NameAndCount) ->
-                                            x.Name.StartsWith(e.Text, StringComparison.OrdinalIgnoreCase))
-                                        |> Array.sortBy (fun x -> x.Name)
-                                        |> Array.map (fun x -> x.Name)
-                                        |> Array.toSeq
-                                | _ -> ()
-                            })
-
-                        SelectedOptionChanged(fun (item: string) ->
-                            task {
-                                setSelectedTag item
+                                let item = string args.Value
+                                setSelectedTag (if String.IsNullOrWhiteSpace item then null else item)
 
                                 let! stationsResult =
                                     if searchEnabled searchString then
@@ -109,6 +99,18 @@ let stationsByCountry (countryCode: string) =
 
                                 publishStationsResult (store, stationsResult, emptyStations)
                             })
+                    }
+
+                    datalist {
+                        id "tag-options"
+
+                        match store.Tags.Value with
+                        | Loaded tags ->
+                            for tag in tags do
+                                option {
+                                    value tag.Name
+                                }
+                        | _ -> ()
                     }
                 }
 

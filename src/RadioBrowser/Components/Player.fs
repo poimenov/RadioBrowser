@@ -2,6 +2,7 @@
 module RadioBrowser.Player
 
 open System
+open System.Globalization
 open Microsoft.FluentUI.AspNetCore.Components
 open Microsoft.JSInterop
 open FSharp.Data.Adaptive
@@ -15,6 +16,7 @@ let player =
             let! visiblePopover, setVisiblePopover = cval(false).WithSetter()
             let! volume, setVolume = cval(store.Volume.Value).WithSetter()
             let! selectedStationIsFavorite = store.SelectedStationIsFavorite
+            let volumePercent = (volume * 100.0).ToString("0.##", CultureInfo.InvariantCulture)
 
             match selectedStation with
             | NotSelected ->
@@ -26,12 +28,13 @@ let player =
                 FluentStack'' {
                     Orientation Orientation.Horizontal
                     VerticalAlignment VerticalAlignment.Center
+                    HorizontalGap "12"
 
                     stationIcon station.Favicon
 
                     FluentStack'' {
                         Orientation Orientation.Vertical
-                        VerticalGap 4
+                        VerticalGap "4"
                         style' "max-width: 500px;overflow: hidden;"
 
                         FluentStack'' {
@@ -52,11 +55,11 @@ let player =
                                 }
 
                             if not (String.IsNullOrEmpty station.Homepage) then
-                                FluentAnchor'' {
+                                FluentLink'' {
                                     class' "station-name"
                                     title' station.Name
-                                    Appearance Appearance.Hypertext
-                                    href "#"
+                                    Appearance LinkAppearance.Default
+                                    Href "#"
                                     OnClick(fun _ -> services.LinkOpeningService.OpenUrl station.Homepage)
 
                                     station.Name
@@ -72,7 +75,7 @@ let player =
                         FluentStack'' {
                             Orientation Orientation.Horizontal
                             VerticalAlignment VerticalAlignment.Center
-                            HorizontalGap 4
+                            HorizontalGap "4"
 
                             FluentIcon'' {
                                 Value(
@@ -111,13 +114,6 @@ let player =
                         class' "player-button"
                         Title(string (services.Localizer["AddToFavorites"]))
 
-                        IconStart(
-                            if selectedStationIsFavorite then
-                                Icons.Filled.Size48.Heart() :> Icon
-                            else
-                                Icons.Regular.Size48.Heart() :> Icon
-                        )
-
                         OnClick(fun _ ->
                             task {
                                 if services.FavoritesDataAccess.Exists station.Id then
@@ -129,26 +125,33 @@ let player =
 
                                 store.SelectedStationIsFavorite.Publish station.IsFavorite
                             })
+
+                        FluentIcon'' {
+                            Value(
+                                if selectedStationIsFavorite then
+                                    Icons.Filled.Size48.Heart() :> Icon
+                                else
+                                    Icons.Regular.Size48.Heart() :> Icon
+                            )
+                            style' "width:48px;height:48px;flex-shrink:0;color:var(--colorBrandForeground1);"
+                        }
                     }
 
                     FluentButton'' {
                         Id "player-button-volume"
                         class' "player-button"
                         Title(string (services.Localizer["Volume"]))
-                        IconStart(Icons.Regular.Size48.Speaker2())
                         OnClick(fun _ -> setVisiblePopover true)
+
+                        FluentIcon'' {
+                            Value(Icons.Regular.Size48.Speaker2())
+                            style' "width:48px;height:48px;flex-shrink:0;color:var(--colorBrandForeground1);"
+                        }
                     }
 
                     FluentButton'' {
                         class' "player-button"
                         Title(string (services.Localizer["PlayPause"]))
-
-                        IconStart(
-                            if isPlaying then
-                                Icons.Regular.Size48.RecordStop() :> Icon
-                            else
-                                Icons.Regular.Size48.PlayCircle() :> Icon
-                        )
 
                         OnClick(fun _ ->
                             task {
@@ -157,31 +160,63 @@ let player =
 
                                 store.IsPlaying.Publish(not isPlaying)
                             })
+
+                        FluentIcon'' {
+                            Value(
+                                if isPlaying then
+                                    Icons.Regular.Size48.RecordStop() :> Icon
+                                else
+                                    Icons.Regular.Size48.PlayCircle() :> Icon
+                            )
+                            style' "width:48px;height:48px;flex-shrink:0;color:var(--colorBrandForeground1);"
+                        }
                     }
                 }
 
                 FluentPopover'' {
                     AnchorId "player-button-volume"
-                    style' "width: 50px;height: 260px;"
-                    VerticalPosition VerticalPosition.Top
-                    HorizontalPosition HorizontalPosition.Center
-                    Open visiblePopover
-                    OpenChanged(fun v -> setVisiblePopover v)
+                    class' "volume-popover"
+                    style' "width:96px;height:260px;padding:0;"
+                    Opened visiblePopover
+                    OpenedChanged(fun v -> setVisiblePopover v)
 
-                    Body(
-                        FluentSliderFloat'' {
-                            Orientation Orientation.Vertical
-                            Min 0.0
-                            Max 1.0
-                            Step 0.01
-                            Value(1.0 - volume)
+                    div {
+                        class' "volume-slider-container"
 
-                            ValueChanged(fun v ->
-                                let rv = 1.0 - v
-                                setVolume rv
-                                store.Volume.Publish rv
-                                services.JsRuntime.InvokeVoidAsync("setVolume", rv) |> ignore)
+                        input {
+                            type' "range"
+                            min "0"
+                            max "100"
+                            step "1"
+                            value volumePercent
+                            class' "volume-slider"
+                            style' ("--volume-percent:" + volumePercent + "%;")
+
+                            oninput (fun args ->
+                                task {
+                                    let rawValue = Convert.ToString(args.Value, CultureInfo.InvariantCulture)
+                                    let percent = Double.Parse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture)
+
+                                    if percent < 0.0 || percent > 100.0 then
+                                        invalidArg "args" "Volume percentage must be between 0 and 100."
+
+                                    let normalizedVolume = percent / 100.0
+                                    do! services.JsRuntime.InvokeVoidAsync("setVolume", normalizedVolume)
+                                    setVolume normalizedVolume
+                                    store.Volume.Publish normalizedVolume
+                                })
                         }
-                    )
+
+                        div {
+                            class' "volume-scale"
+
+                            for percent in [ 100; 75; 50; 25; 0 ] do
+                                div {
+                                    class' "volume-scale-mark"
+                                    span { class' "volume-scale-tick" }
+                                    span { string percent + "%" }
+                                }
+                        }
+                    }
                 }
         })

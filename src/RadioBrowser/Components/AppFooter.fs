@@ -8,10 +8,10 @@ open Fun.Blazor
 
 let appFooter =
     html.inject (fun (store: IShareStore, services: IServices, options: IOptions<AppSettings>, pluginService: IPluginService) ->
-        FluentFooter'' {
-            FluentAnchor'' {
-                Appearance Appearance.Hypertext
-                href "#"
+        footer {
+            FluentLink'' {
+                Appearance LinkAppearance.Default
+                Href "#"
                 OnClick(fun _ -> services.LinkOpeningService.OpenUrl "https://slaveoftime.github.io/Fun.Blazor.Docs/")
 
                 "Fun.Blazor"
@@ -42,7 +42,7 @@ let appFooter =
                         Orientation Orientation.Horizontal
                         VerticalAlignment VerticalAlignment.Center
                         HorizontalAlignment HorizontalAlignment.Center
-                        HorizontalGap 4
+                        HorizontalGap "4"
 
                         FluentIcon'' {
                             slot' "start"
@@ -68,25 +68,22 @@ let appFooter =
                                             let content =
                                                 DialogData<DownloadPanelData>(DownloadPanelData(downloader, t))
 
-                                            let dialogParams = DialogParameters<DialogData<DownloadPanelData>>()
+                                            let dialogOptions = DialogOptions()
 
-                                            dialogParams.Title <-
+                                            dialogOptions.Header.Title <-
                                                 String.Concat(
                                                     string (services.Localizer["SearchOn"]),
                                                     " ",
                                                     downloader.PluginName
                                                 )
 
-                                            dialogParams.Width <- "450px"
-                                            dialogParams.Alignment <- HorizontalAlignment.Right
+                                            dialogOptions.Header.CloseAction.Visible <- true
+                                            dialogOptions.Width <- "450px"
+                                            dialogOptions.Alignment <- DialogAlignment.End
+                                            dialogOptions.Data <- content
 
-                                            dialogParams.Content <- content
-
-                                            let! dialog =
-                                                services.DialogService.ShowPanelAsync<DownloadPanel>(
-                                                    content,
-                                                    dialogParams
-                                                )
+                                            let! _ =
+                                                services.DialogService.ShowDrawerAsync<DownloadPanel>(dialogOptions)
                                                 |> Async.AwaitTask
 
                                             ()
@@ -118,9 +115,9 @@ let appFooter =
                 }
             }
 
-            FluentAnchor'' {
-                Appearance Appearance.Hypertext
-                href "#"
+            FluentLink'' {
+                Appearance LinkAppearance.Default
+                Href "#"
                 OnClick(fun _ -> services.LinkOpeningService.OpenUrl "https://www.tryphotino.io")
 
                 "Photino"

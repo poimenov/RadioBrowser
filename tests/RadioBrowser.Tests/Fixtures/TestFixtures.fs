@@ -4,6 +4,7 @@ open System
 open Microsoft.Extensions.Logging
 open Microsoft.Extensions.DependencyInjection
 open Microsoft.AspNetCore.Components.Routing
+open Microsoft.FluentUI.AspNetCore.Components
 open Moq
 open Bunit
 
@@ -14,6 +15,8 @@ module TestFixtures =
 
         textContext.Services.AddScoped<INavigationInterception>(fun _ -> Mock.Of<INavigationInterception>())
         |> ignore
+
+        textContext.Services.AddFluentUIComponents() |> ignore
 
         textContext
 

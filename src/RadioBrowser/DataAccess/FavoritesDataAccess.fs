@@ -53,18 +53,20 @@ type FavoritesDataAccess(logger: ILogger<FavoritesDataAccess>) =
             try
                 use db = new LiteDatabase(AppSettings.ConnectionString, mapper)
 
-                let retVal =
+                let favorites =
                     match name with
-                    | None -> getFavorites(db).FindAll().Skip(parameters.Offset).Take(parameters.Limit).ToArray()
+                    | None -> getFavorites(db).FindAll()
                     | Some name when not (String.IsNullOrWhiteSpace name) ->
                         getFavorites(db)
-                            .Find(
-                                (fun x -> x.Name.ToLower().Contains(name.ToLower())),
-                                parameters.Offset,
-                                parameters.Limit
-                            )
-                            .ToArray()
-                    | Some _ -> getFavorites(db).FindAll().Skip(parameters.Offset).Take(parameters.Limit).ToArray()
+                            .Find(fun x -> x.Name.ToLower().Contains(name.ToLower()))
+                    | Some _ -> getFavorites(db).FindAll()
+
+                let retVal =
+                    favorites
+                    |> Seq.sortByDescending (fun station -> station.Votes)
+                    |> Seq.skip parameters.Offset
+                    |> Seq.truncate parameters.Limit
+                    |> Seq.toArray
 
                 Ok retVal
             with ex ->

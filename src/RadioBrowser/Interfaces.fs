@@ -88,6 +88,7 @@ type Station =
       Language: string
       Codec: string
       Bitrate: int
+      Votes: int
       mutable IsFavorite: bool }
 
 type StationMapper =
@@ -104,6 +105,7 @@ type StationMapper =
           Language = station.Language
           Codec = station.Codec
           Bitrate = station.Bitrate
+          Votes = station.Votes
           IsFavorite = isFavorite }
 
 type IFavoritesDataAccess =
@@ -160,7 +162,7 @@ type IHistoryDataAccess =
 type SharedResources() = class end
 
 type IServices =
-    abstract member ToastService: IToastService
+    abstract member NotificationService: INotificationService
     abstract member StationsService: IStationsService
     abstract member FavoritesDataAccess: IFavoritesDataAccess
     abstract member HistoryDataAccess: IHistoryDataAccess

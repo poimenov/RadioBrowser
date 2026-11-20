@@ -46,7 +46,7 @@ let stationItem (station: Station, isFavorite: bool) =
             FluentStack'' {
                 Orientation Orientation.Horizontal
                 VerticalAlignment VerticalAlignment.Center
-                HorizontalGap 4
+                HorizontalGap "4"
 
                 FluentIcon'' {
                     Value(

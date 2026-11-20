@@ -89,12 +89,13 @@ let tagsPage =
                             div {
                                 style' "margin-bottom:10px;"
 
-                                FluentSearch'' {
+                                input {
+                                    type' "search"
+                                    class' "search-input"
                                     style' "width:330px;"
-                                    Placeholder(string (localizer["TagName"]))
-                                    Immediate true
-                                    Value searchString
-                                    ValueChanged(fun s -> setSearchString s)
+                                    placeholder (string (localizer["TagName"]))
+                                    value searchString
+                                    oninput (fun args -> setSearchString (string args.Value))
                                 }
                             }
 

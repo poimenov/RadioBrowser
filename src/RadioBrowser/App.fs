@@ -70,9 +70,33 @@ let routes =
 
 let app =
     html.inject
-        (fun (hook: IComponentHook, store: IShareStore, services: IServices, window: Photino.NET.PhotinoWindow) ->
+        (fun
+            (hook: IComponentHook,
+             store: IShareStore,
+             services: IServices,
+             themeService: IThemeService,
+             window: Photino.NET.PhotinoWindow) ->
             hook.AddInitializedTask(fun _ ->
                 task {
+                    let! theme =
+                        services.JsRuntime.InvokeAsync<string>("getRadioBrowserTheme").AsTask()
+
+                    let! accentColor =
+                        services.JsRuntime.InvokeAsync<string>("getRadioBrowserAccentColor").AsTask()
+
+                    do! themeService.SetThemeAsync(accentColor, true)
+
+                    do!
+                        themeService.SetThemeAsync(
+                            if theme = "dark" then
+                                ThemeMode.Dark
+                            else
+                                ThemeMode.Light
+                        )
+
+                    store.Theme.Publish(if theme = "dark" then Dark else Light)
+                    store.AccentColor.Publish accentColor
+
                     store.IsMenuOpen.Publish(window.Width > 800)
 
                     let update (ids: Guid array) =
@@ -118,132 +142,142 @@ let app =
 
             ErrorBoundary'' {
                 ErrorContent(fun e ->
-                    FluentLabel'' {
-                        Color Color.Error
+                    span {
+                        style' "color:#d13438;"
                         string e
                     })
 
-                FluentDesignTheme'' { StorageName "theme" }
+                adapt {
+                    let! theme = store.Theme
 
-                FluentToastProvider'' {
-                    MaxToastCount 3
-                    Position ToastPosition.TopLeft
-                }
+                    FluentProviders''
 
-                FluentMenuProvider''
-                FluentDialogProvider''
+                    div {
+                        class' (if theme = Dark then "app-shell dark" else "app-shell")
+                        appHeader
 
-                FluentLayout'' {
-                    appHeader
+                        FluentStack'' {
+                            Width "100%"
+                            class' "main"
+                            Orientation Orientation.Horizontal
+                            navmenus
 
-                    FluentStack'' {
-                        Width "100%"
-                        class' "main"
-                        Orientation Orientation.Horizontal
-                        navmenus
+                            main {
+                                class' "body-content"
+                                style { overflowHidden }
 
-                        FluentBodyContent'' {
-                            class' "body-content"
-                            style { overflowHidden }
+                                FluentStack'' {
+                                    style' "width:100%;height:100%;"
+                                    Orientation Orientation.Vertical
+                                    VerticalGap "2"
 
-                            FluentStack'' {
-                                style' "width:100%;height:100%;"
-                                Orientation Orientation.Vertical
-                                VerticalGap 2
+                                    adapt {
+                                        let! selectedStation = store.SelectedStation
+                                        let! isPlaying = store.IsPlaying
+                                        let! searchMode = store.SearchMode
+                                        let! headerTitle = store.HeaderTitle
+                                        let! headerIcon = store.HeaderIcon
 
-                                adapt {
-                                    let! selectedStation = store.SelectedStation
-                                    let! isPlaying = store.IsPlaying
-                                    let! searchMode = store.SearchMode
-                                    let! headerTitle = store.HeaderTitle
-                                    let! headerIcon = store.HeaderIcon
+                                        let audioUrl =
+                                            match selectedStation with
+                                            | NotSelected -> None
+                                            | Selected station ->
+                                                if String.IsNullOrWhiteSpace station.UrlResolved then
+                                                    None
+                                                else
+                                                    Some station.UrlResolved
 
-                                    let audioUrl =
-                                        match selectedStation with
-                                        | NotSelected -> None
-                                        | Selected station ->
-                                            if String.IsNullOrWhiteSpace station.UrlResolved then
-                                                None
-                                            else
-                                                Some station.UrlResolved
-
-                                    task {
-                                        try
-                                            do! services.JsRuntime.InvokeVoidAsync("playAudio", isPlaying, audioUrl)
-                                        with ex ->
-                                            services.ToastService.ShowError(
-                                                string (services.Localizer["ErrorInvokePlayAudio"])
-                                            )
-                                            |> ignore
-                                    }
-                                    |> ignore
-
-                                    let getErrorMessage =
-                                        match selectedStation with
-                                        | NotSelected -> ""
-                                        | Selected station ->
-                                            let msg = string (services.Localizer["ErrorLoadingStation"])
-                                            $"{msg}: {station.Name} ({station.UrlResolved})"
-
-                                    FluentStack'' {
-                                        Orientation Orientation.Horizontal
-                                        VerticalAlignment VerticalAlignment.Center
-                                        HorizontalAlignment HorizontalAlignment.Center
-                                        HorizontalGap 4
-                                        style' "height: 30px;"
-
-                                        FluentIcon'' { Value headerIcon }
-
-                                        span {
-                                            style' "font-size: 24px; font-weight: bold;"
-                                            headerTitle
+                                        task {
+                                            try
+                                                do!
+                                                    services.JsRuntime.InvokeVoidAsync(
+                                                        "playAudio",
+                                                        isPlaying,
+                                                        audioUrl,
+                                                        store.Volume.Value
+                                                    )
+                                            with ex ->
+                                                services.NotificationService.ShowErrorToastAsync(
+                                                    string (services.Localizer["ErrorInvokePlayAudio"])
+                                                )
+                                                |> ignore
                                         }
-                                    }
+                                        |> ignore
 
-                                    let styleHeight =
-                                        match selectedStation with
-                                        | NotSelected -> "height: calc(100% - 30px);"
-                                        | Selected _ -> "height: calc(100% - 104px);"
+                                        let getErrorMessage =
+                                            match selectedStation with
+                                            | NotSelected -> ""
+                                            | Selected station ->
+                                                let msg = string (services.Localizer["ErrorLoadingStation"])
+                                                $"{msg}: {station.Name} ({station.UrlResolved})"
 
-                                    div {
-                                        class' "content"
-                                        style' styleHeight
+                                        FluentStack'' {
+                                            Orientation Orientation.Horizontal
+                                            VerticalAlignment VerticalAlignment.Center
+                                            HorizontalAlignment HorizontalAlignment.Center
+                                            HorizontalGap "4"
+                                            style' "height: 30px;"
 
-                                        routes
-                                    }
+                                            FluentIcon'' { Value headerIcon }
 
-                                    if selectedStation <> NotSelected then
-                                        div {
-                                            class' "player-container"
-                                            player
-
-                                            audio {
-                                                id "player"
-                                                style' "display:none;"
-                                                controls
-
-                                                onstalled (fun _ ->
-                                                    task {
-                                                        services.ToastService.ShowError getErrorMessage
-                                                        store.IsPlaying.Publish false
-                                                    })
-
-                                                onerror (fun _ ->
-                                                    task {
-                                                        services.ToastService.ShowError getErrorMessage
-                                                        store.IsPlaying.Publish false
-                                                    })
-
-                                                onended (fun _ -> store.IsPlaying.Publish false)
-                                                onpause (fun _ -> store.IsPlaying.Publish false)
+                                            span {
+                                                style' "font-size: 24px; font-weight: bold;"
+                                                headerTitle
                                             }
                                         }
+
+                                        let styleHeight =
+                                            match selectedStation with
+                                            | NotSelected -> "height: calc(100% - 30px);"
+                                            | Selected _ -> "height: calc(100% - 104px);"
+
+                                        div {
+                                            class' "content"
+                                            style' styleHeight
+
+                                            routes
+                                        }
+
+                                        if selectedStation <> NotSelected then
+                                            div {
+                                                class' "player-container"
+                                                player
+
+                                                audio {
+                                                    id "player"
+                                                    style' "display:none;"
+                                                    controls
+
+                                                    onplay (fun _ ->
+                                                        task {
+                                                            do! services.JsRuntime.InvokeVoidAsync("setVolume", store.Volume.Value)
+                                                        })
+
+                                                    onstalled (fun _ ->
+                                                        task {
+                                                            services.NotificationService.ShowErrorToastAsync getErrorMessage
+                                                            |> ignore
+                                                            store.IsPlaying.Publish false
+                                                        })
+
+                                                    onerror (fun _ ->
+                                                        task {
+                                                            services.NotificationService.ShowErrorToastAsync getErrorMessage
+                                                            |> ignore
+                                                            store.IsPlaying.Publish false
+                                                        })
+
+                                                    onended (fun _ -> store.IsPlaying.Publish false)
+                                                    onpause (fun _ -> store.IsPlaying.Publish false)
+                                                }
+                                            }
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    appFooter
+                        appFooter
+                    }
                 }
             })
 

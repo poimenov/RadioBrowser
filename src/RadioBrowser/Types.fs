@@ -25,6 +25,10 @@ type LoadingState<'T> =
     | Failed of ('T * string)
     | EndOfList of 'T
 
+type AppTheme =
+    | Light
+    | Dark
+
 [<Struct>]
 type Country =
     val mutable Name: string
@@ -32,10 +36,8 @@ type Country =
 
 type IShareStore with
     member store.IsMenuOpen = store.CreateCVal(nameof store.IsMenuOpen, true)
-    member store.Theme = store.CreateCVal(nameof store.Theme, DesignThemeModes.Light)
-
-    member store.AccentColor =
-        store.CreateCVal(nameof store.AccentColor, OfficeColor.Default)
+    member store.Theme = store.CreateCVal(nameof store.Theme, Light)
+    member store.AccentColor = store.CreateCVal(nameof store.AccentColor, "#036ac4")
 
     member store.Stations =
         store.CreateCVal(nameof store.Stations, Loaded(Enumerable.Empty<Station>()))

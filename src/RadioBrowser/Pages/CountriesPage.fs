@@ -40,23 +40,28 @@ let countriesPage =
                         }
                     | EndOfList countries
                     | Loaded countries ->
-                        let filteredCountries =
+                        let candidateCountries =
                             if String.IsNullOrWhiteSpace searchString then
-                                countries |> Array.distinctBy (fun c -> c.Name)
+                                countries
                             else
                                 countries
                                 |> Array.filter (fun c -> c.Name.ToLower().Contains(searchString.ToLower()))
-                                |> Array.distinctBy (fun c -> c.Name)
+
+                        let filteredCountries =
+                            candidateCountries
+                            |> Array.distinctBy (fun country -> country.Name)
+                            |> Array.sortBy (fun country -> -country.Stationcount, country.Name)
 
                         div {
                             style' "margin-bottom:10px;"
 
-                            FluentSearch'' {
+                            input {
+                                type' "search"
+                                class' "search-input"
                                 style' "width:330px;"
-                                Placeholder(string (localizer["CountryName"]))
-                                Immediate true
-                                Value searchString
-                                ValueChanged(fun s -> setSearchString s)
+                                placeholder (string (localizer["CountryName"]))
+                                value searchString
+                                oninput (fun args -> setSearchString (string args.Value))
                             }
                         }
 

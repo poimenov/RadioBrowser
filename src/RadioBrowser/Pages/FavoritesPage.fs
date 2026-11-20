@@ -38,13 +38,16 @@ let favoriteStations =
                     class' "stations-list"
                     style' "padding:10px;"
 
-                    FluentSearch'' {
+                    input {
+                        type' "search"
+                        class' "search-input"
                         title' (string (localizer["FilterStations"]))
-                        Placeholder(string (localizer["StationName"]))
-                        Value searchString
+                        placeholder (string (localizer["StationName"]))
+                        value searchString
 
-                        ValueChanged(fun s ->
+                        oninput (fun args ->
                             task {
+                                let s = string args.Value
                                 setSearchString s
 
                                 let! stationsResult =

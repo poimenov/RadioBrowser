@@ -31,7 +31,10 @@ let main args =
             .Build()
 
     builder.Services.AddFunBlazorWasm() |> ignore
-    builder.Services.AddFluentUIComponents() |> ignore
+
+    builder.Services.AddFluentUIComponents(fun options ->
+        options.Toast.Position <- ToastPosition.TopStart)
+    |> ignore
 
     builder.Services.AddLogging(fun logging ->
         logging.ClearProviders().AddLog4Net().AddFilter("System.Net.Http.HttpClient", LogLevel.Warning)

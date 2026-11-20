@@ -25,7 +25,7 @@ let loadingState (localizer: IStringLocalizer<SharedResources>) =
 
         div { localizer["IsLoading"] }
 
-        FluentProgressRing''
+        FluentSpinner''
     }
 
 let getParameters (offset: int, settings: AppSettings) =
@@ -95,7 +95,7 @@ let watchElementVisibleComponent =
                     let! stationsState = store.Stations
 
                     match stationsState with
-                    | Loading _ -> FluentProgressRing'' { style' "margin-top:5px;margin-bottom:5px;" }
+                    | Loading _ -> FluentSpinner'' { style' "margin-top:5px;margin-bottom:5px;" }
                     | _ -> ()
                 }
 

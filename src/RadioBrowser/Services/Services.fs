@@ -7,7 +7,7 @@ open Microsoft.JSInterop
 
 type Services
     (
-        toastService: IToastService,
+        notificationService: INotificationService,
         stationsService: IStationsService,
         linkOpeningService: ILinkOpeningService,
         localizer: IStringLocalizer<SharedResources>,
@@ -17,7 +17,7 @@ type Services
         dialogService: IDialogService
     ) =
     interface IServices with
-        member _.ToastService = toastService
+        member _.NotificationService = notificationService
 
         member _.FavoritesDataAccess: IFavoritesDataAccess =
             stationsService.FavoritesDataAccess
