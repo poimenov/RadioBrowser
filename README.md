@@ -1,62 +1,62 @@
 # RadioBrowser Player
 
-A lightweight, cross-platform desktop radio player built with F# and .NET 10.0. Discover and listen to thousands of internet radio stations, manage your favorites, and never lose track of what you're listening to.
+A desktop internet radio player built with F# and .NET 10. Browse stations from the [RadioBrowser](https://www.radio-browser.info/) directory, save favorites, and keep track of what you have listened to.
 
-[![.NET 10.0](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
-[![F#](https://img.shields.io/badge/F%23-10.0-378BBA?logo=fsharp)](https://fsharp.org/)
+[![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
+[![F#](https://img.shields.io/badge/F%23-10-378BBA?logo=fsharp)](https://fsharp.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-![Screenshot of the script UI](/img/radioBrowser.Photino.jpg)
+![RadioBrowser Player screenshot](./img/radioBrowser.Photino.jpg)
 
-## ✨ Features
+## Features
 
-*   **Global Radio Discovery**: Search for radio stations by name, country, or tag using the integrated [RadioBrowser](https://www.radio-browser.info/) API.
-*   **Smart Favorites**: Add stations to your personal favorites list for instant access.
-*   **Now Playing**: See the current track title (via Icecast metadata) for supported stations.
-*   **Listening History**: Automatically keeps a log of all stations you've played.
-*   **Modern, Native UI**: A clean and responsive user interface built with Blazor and Fluent UI, running in a lightweight native window via Photino.
-*   **Lightweight & Fast**: No heavy Electron shell. The app is a small, fast .NET executable.
-*   **Cross-Platform**: Runs on Windows and Linux (maybe on macOS too, but I haven't had a chance to test it).
+- Browse popular stations by votes or clicks, or explore stations by country and tag.
+- Search stations by name and filter the station lists.
+- Play internet radio streams with playback and volume controls.
+- Add stations to favorites and review listening history.
+- View track metadata when it is provided by the station.
+- Search for and download tracks through the available downloader plugin.
+- Switch between light and dark themes and choose an accent color.
 
-## 🛠️ Built With
+Favorites and listening history are stored locally in a LiteDB database.
 
-*   **[.NET 10.0](https://dotnet.microsoft.com/download/dotnet/10.0)**: The core runtime and framework.
-*   **[F#](https://fsharp.org/)**: The primary programming language.
-*   **[Photino.Blazor](https://github.com/tryphotino/photino.Blazor)**: A lightweight native window to host the Blazor UI.
-*   **[Fun.Blazor](https://github.com/slaveOftime/Fun.Blazor)**: A famous F#-first DSL for building Blazor UI components.
-*   **[fluentui-blazor](https://github.com/microsoft/fluentui-blazor)**: Microsoft's official Fluent UI Blazor components for a modern design.
-*   **[LiteDB](https://www.litedb.org/)**: A serverless, embedded .NET NoSQL database for storing favorites.
+## Installation
 
-### Installation
+Download the latest release from the [Releases](https://github.com/poimenov/RadioBrowser/releases) page, choose the archive for your platform, and extract it.
 
-1.  **Download the latest release** from the [Releases](https://github.com/poimenov/RadioBrowser/releases) page. If you don't have [.NET 10.0 Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) runtime installed, use self-contained version
+- **Self-contained** archives include the .NET runtime.
+- **Framework-dependent** archives require the .NET 10 runtime to be installed.
 
-2. Unpack and run it.
+Keep the extracted files together when running the app; the release includes a `Plugins` folder used by the downloader.
 
+Prebuilt release packages are currently produced for Windows x64 and Linux x64. macOS is not included in the release build script.
 
-### From Source Code
-#### Prerequisites
+## Build and run from source
 
-*   [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+### Prerequisites
 
-#### Build Steps
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/poimenov/RadioBrowser.git
-    cd RadioBrowser
-    ```
+### Commands
 
-2.  **Restore dependencies**:
-    ```bash
-    dotnet restore
-    ```
+From the repository root:
 
-3.  **Build the project**:
-    ```bash
-    dotnet build --configuration Release
-    ```
+```bash
+dotnet restore RadioBrowser.slnx
+dotnet build RadioBrowser.slnx --configuration Release
+dotnet run --project src/RadioBrowser/RadioBrowser.fsproj
+```
 
----
+Run the test suite with:
 
-**Enjoy the tunes!** 🎵
+```bash
+dotnet test tests/RadioBrowser.Tests/RadioBrowser.Tests.fsproj
+```
+
+To create release archives for Windows x64 and Linux x64, run:
+
+```bash
+dotnet fsi publish.fsx
+```
+
+The publishing script creates framework-dependent and self-contained archives under `artifacts/`. It removes existing `bin/`, `obj/`, and `artifacts/` directories before building.
