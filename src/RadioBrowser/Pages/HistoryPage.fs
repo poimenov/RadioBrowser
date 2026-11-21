@@ -101,66 +101,69 @@ let historyPage =
                 let items =
                     history.OrderByDescending(fun r -> r.StartTime).AsQueryable<HistoryRecord>()
 
+
                 div {
-                    class' "history-grid-scroll"
+                    class' "table-container"
 
-                    FluentDataGrid'' {
-                        Items items
-                        AutoFit true
-                        DisplayMode DataGridDisplayMode.Table
-                        GenerateHeader DataGridGeneratedHeaderType.Sticky
+                    table {
+                        class' "data-table"
 
-                        PropertyColumn'' {
-                            Title(string (services.Localizer["Time"]))
-                            Width "20%"
+                        thead {
+                            tr {
+                                th {
+                                    style' "width: 10%;"
+                                    gridHeader (Icons.Regular.Size20.Clock()) (string (services.Localizer["Time"]))
+                                }
 
-                            HeaderCellTitleTemplate(fun _ ->
-                                gridHeader (Icons.Regular.Size20.Clock()) (string (services.Localizer["Time"])))
+                                th {
+                                    style' "width: 10%;"
 
-                            Property(fun (item: HistoryRecord) ->
-                                item.StartTime.ToString("g", CultureInfo.CurrentCulture))
+                                    gridHeader
+                                        (Icons.Regular.Size20.Location())
+                                        (string (services.Localizer["Station"]))
+                                }
+
+                                th {
+                                    style' "width: 80%;"
+
+                                    gridHeader
+                                        (Icons.Regular.Size20.MusicNote1())
+                                        (string (services.Localizer["Title"]))
+                                }
+                            }
                         }
 
-                        PropertyColumn'' {
-                            Title(string (services.Localizer["Station"]))
-                            Width "40%"
+                        tbody {
+                            for item in items do
+                                tr {
+                                    td { item.StartTime.ToString("g", CultureInfo.CurrentCulture) }
+                                    td { item.StationName }
 
-                            HeaderCellTitleTemplate(fun _ ->
-                                gridHeader (Icons.Regular.Size20.Location()) (string (services.Localizer["Station"])))
+                                    td {
+                                        let searchtext = string (services.Localizer["SearchOnYouTube"])
 
-                            Property(fun (item: HistoryRecord) -> item.StationName)
-                        }
+                                        span {
+                                            class' "link"
+                                            title' $"{searchtext}: {item.Title}"
 
-                        TemplateColumn'' {
-                            Title(string (services.Localizer["Title"]))
-                            Width "40%"
+                                            onclick (fun _ ->
+                                                services.LinkOpeningService.OpenUrl(
+                                                    String.Format(
+                                                        services.StationsService.Settings.TrackSearchUrl,
+                                                        Uri.EscapeDataString item.Title
+                                                    )
+                                                ))
 
-                            HeaderCellTitleTemplate(fun _ ->
-                                gridHeader (Icons.Regular.Size20.MusicNote1()) (string (services.Localizer["Title"])))
-
-                            ChildContent(fun (item: HistoryRecord) ->
-                                let searchtext = string (services.Localizer["SearchOnYouTube"])
-
-                                span {
-                                    class' "link"
-                                    title' $"{searchtext}: {item.Title}"
-
-                                    onclick (fun _ ->
-                                        services.LinkOpeningService.OpenUrl(
-                                            String.Format(
-                                                services.StationsService.Settings.TrackSearchUrl,
-                                                Uri.EscapeDataString item.Title
-                                            )
-                                        ))
-
-                                    item.Title
-                                })
+                                            item.Title
+                                        }
+                                    }
+                                }
                         }
                     }
                 }
 
                 FluentButton'' {
-                    Appearance ButtonAppearance.Primary
+                    Appearance ButtonAppearance.Transparent
                     style' "margin:10px;"
                     Title(string (services.Localizer["OpenHistoryInBrowser"]))
 
