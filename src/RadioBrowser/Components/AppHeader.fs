@@ -9,20 +9,14 @@ open Fun.Blazor
 
 let appHeader =
     html.inject
-        (fun
-            (store: IShareStore,
-             services: IServices,
-             themeService: IThemeService,
-             options: IOptions<AppSettings>) ->
+        (fun (store: IShareStore, services: IServices, themeService: IThemeService, options: IOptions<AppSettings>) ->
             let los = services.LinkOpeningService
             let jsRuntime = services.JsRuntime
             let localizer = services.Localizer
-            let menuOpenState = cval false
-            let accentMenuOpenState = cval false
-            let languageMenuOpenState = cval false
 
             header {
                 class' "app-header"
+
                 style'
                     "display:flex;align-items:center;height:56px;flex:0 0 56px;box-sizing:border-box;position:relative;z-index:2;overflow:visible;padding:8px 12px;background:var(--colorBrandBackground);color:var(--colorNeutralForegroundOnBrand,#ffffff);"
 
@@ -50,9 +44,6 @@ let appHeader =
                         let! theme = store.Theme
                         let! accentColor = store.AccentColor
                         let! cultureName = store.CultureName
-                        let! menuOpen, setMenuOpen = menuOpenState.WithSetter()
-                        let! accentMenuOpen, setAccentMenuOpen = accentMenuOpenState.WithSetter()
-                        let! languageMenuOpen, setLanguageMenuOpen = languageMenuOpenState.WithSetter()
 
                         let colors =
                             [ "Blue", "#036ac4"
@@ -63,48 +54,135 @@ let appHeader =
                               "Red", "#d13438" ]
 
                         let colorItems =
-                            fragment {
-                                for (label, accentHex) in colors do
-                                    button {
-                                        type' "button"
-                                        class' "settings-menu-item"
+                            FluentMenuItem'' {
+                                MenuItems(
+                                    fragment {
+                                        for (label, accentHex) in colors do
+                                            FluentMenuItem'' {
+                                                role MenuItemRole.Radio
+                                                checked' (accentColor = accentHex)
 
-                                        onclick (fun _ ->
-                                            task {
-                                                do! themeService.SetThemeAsync(accentHex, true)
+                                                CheckedChanged(fun isChecked ->
+                                                    task {
+                                                        if isChecked.GetValueOrDefault() then
+                                                            do! themeService.SetThemeAsync(accentHex, true)
 
-                                                do!
-                                                    themeService.SetThemeAsync(
-                                                        if theme = Dark then
-                                                            ThemeMode.Dark
-                                                        else
-                                                            ThemeMode.Light
-                                                    )
+                                                            do!
+                                                                themeService.SetThemeAsync(
+                                                                    if theme = Dark then
+                                                                        ThemeMode.Dark
+                                                                    else
+                                                                        ThemeMode.Light
+                                                                )
 
-                                                do!
-                                                    jsRuntime.InvokeVoidAsync(
-                                                        "applyRadioBrowserTheme",
-                                                        (if theme = Dark then "dark" else "light"),
-                                                        accentHex
-                                                    )
+                                                            do!
+                                                                jsRuntime.InvokeVoidAsync(
+                                                                    "applyRadioBrowserTheme",
+                                                                    (if theme = Dark then "dark" else "light"),
+                                                                    accentHex
+                                                                )
 
-                                                store.AccentColor.Publish accentHex
-                                                setAccentMenuOpen false
-                                            })
+                                                            store.AccentColor.Publish accentHex
+                                                    })
 
-                                        FluentIcon'' {
-                                            Value(Icons.Filled.Size20.RectangleLandscape())
-                                            style' $"color:{accentHex};"
-                                        }
+                                                FluentIcon'' {
+                                                    slot' "start"
+                                                    Value(Icons.Filled.Size20.RectangleLandscape())
+                                                    style' $"color:{accentHex};"
+                                                }
 
-                                        span {
-                                            style' "flex:1;"
-                                            label
-                                        }
-
-                                        if accentHex = accentColor then
-                                            FluentIcon'' { Value(Icons.Regular.Size20.Checkmark()) }
+                                                label
+                                            }
                                     }
+                                )
+
+                                FluentIcon'' {
+                                    slot' "start"
+                                    Value(Icons.Filled.Size20.RectangleLandscape())
+                                    style' $"color:{accentColor};"
+                                }
+
+                                localizer["AccentColor"]
+                            }
+
+                        let languageItems =
+                            FluentMenuItem'' {
+                                MenuItems(
+                                    fragment {
+                                        for (languageName, culture) in [ "English", "en-US"; "Русский", "ru-RU" ] do
+                                            FluentMenuItem'' {
+                                                role MenuItemRole.Radio
+                                                checked' (cultureName = culture)
+
+                                                CheckedChanged(fun isChecked ->
+                                                    task {
+                                                        if isChecked.GetValueOrDefault() then
+                                                            options.Value.CultureName <- culture
+                                                            options.Value.ApplyCulture()
+                                                            lock options.Value (fun () -> options.Value.Save())
+                                                            store.CultureName.Publish culture
+                                                    })
+
+                                                languageName
+                                            }
+                                    }
+                                )
+
+                                FluentIcon'' {
+                                    slot' "start"
+                                    Value(Icons.Regular.Size20.LocalLanguage())
+                                }
+
+                                localizer["Language"]
+                            }
+
+                        let githubItem =
+                            FluentMenuItem'' {
+                                OnClick(fun _ -> los.OpenUrl "https://github.com/poimenov/RadioBrowser")
+
+                                FluentIcon'' {
+                                    slot' "start"
+                                    Value(Github())
+                                }
+
+                                localizer["GitHub"]
+                            }
+
+                        let themeItem =
+                            FluentMenuItem'' {
+                                OnClick(fun _ ->
+                                    task {
+                                        let updatedTheme = if theme = Dark then Light else Dark
+                                        store.Theme.Publish updatedTheme
+
+                                        do!
+                                            themeService.SetThemeAsync(
+                                                if updatedTheme = Dark then
+                                                    ThemeMode.Dark
+                                                else
+                                                    ThemeMode.Light
+                                            )
+
+                                        do!
+                                            jsRuntime.InvokeVoidAsync(
+                                                "applyRadioBrowserTheme",
+                                                (if updatedTheme = Dark then "dark" else "light"),
+                                                accentColor
+                                            )
+                                    })
+
+                                FluentIcon'' {
+                                    slot' "start"
+
+                                    Value(
+                                        if theme = Dark then
+                                            Icons.Regular.Size20.WeatherSunny() :> Icon
+                                        else
+                                            Icons.Regular.Size20.WeatherMoon() :> Icon
+                                    )
+                                }
+
+                                localizer["SwitchTheme"]
                             }
 
                         FluentButton'' {
@@ -112,149 +190,18 @@ let appHeader =
                             Appearance ButtonAppearance.Primary
                             class' "header-settings-button"
                             IconStart(Icons.Regular.Size20.Settings())
-                            OnClick(fun _ -> setMenuOpen (not menuOpen))
                         }
 
-                        FluentPopover'' {
-                            AnchorId "settingsButton"
-                            Opened menuOpen
-                            OpenedChanged(fun opened ->
-                                setMenuOpen opened
+                        FluentMenu'' {
+                            Trigger "settingsButton"
 
-                                if not opened then
-                                    setAccentMenuOpen false
-                                    setLanguageMenuOpen false)
-                            style' "width:210px;"
-
-                            if languageMenuOpen then
-                                button {
-                                    type' "button"
-                                    class' "settings-menu-item"
-                                    onclick (fun _ -> setLanguageMenuOpen false)
-
-                                    FluentIcon'' { Value(Icons.Regular.Size20.ChevronLeft()) }
-                                    span { localizer["Language"] }
-                                }
-
-                                for (languageName, culture) in [ "English", "en-US"; "Русский", "ru-RU" ] do
-                                    button {
-                                        type' "button"
-                                        class' "settings-menu-item"
-
-                                        onclick (fun _ ->
-                                            task {
-                                                options.Value.CultureName <- culture
-                                                options.Value.ApplyCulture()
-                                                lock options.Value (fun () -> options.Value.Save())
-                                                store.CultureName.Publish culture
-                                                setLanguageMenuOpen false
-                                            })
-
-                                        span {
-                                            style' "flex:1;"
-                                            languageName
-                                        }
-
-                                        if cultureName = culture then
-                                            FluentIcon'' { Value(Icons.Regular.Size20.Checkmark()) }
-                                    }
-                            elif accentMenuOpen then
-                                button {
-                                    type' "button"
-                                    class' "settings-menu-item"
-                                    onclick (fun _ -> setAccentMenuOpen false)
-
-                                    FluentIcon'' { Value(Icons.Regular.Size20.ChevronLeft()) }
-                                    span { localizer["AccentColor"] }
-                                }
-
+                            FluentMenuList'' {
+                                class' "settings-menu-list"
+                                themeItem
                                 colorItems
-                            else
-                                button {
-                                    type' "button"
-                                    class' "settings-menu-item"
-
-                                    onclick (fun _ ->
-                                        task {
-                                            let updatedTheme = if theme = Dark then Light else Dark
-                                            store.Theme.Publish updatedTheme
-
-                                            do!
-                                                themeService.SetThemeAsync(
-                                                    if updatedTheme = Dark then
-                                                        ThemeMode.Dark
-                                                    else
-                                                        ThemeMode.Light
-                                                )
-
-                                            do!
-                                                jsRuntime.InvokeVoidAsync(
-                                                    "applyRadioBrowserTheme",
-                                                    (if updatedTheme = Dark then "dark" else "light"),
-                                                    accentColor
-                                                )
-                                        })
-
-                                    FluentIcon'' {
-                                        Value(
-                                            if theme = Dark then
-                                                Icons.Regular.Size20.WeatherSunny() :> Icon
-                                            else
-                                                Icons.Regular.Size20.WeatherMoon() :> Icon
-                                        )
-                                    }
-
-                                    span { localizer["SwitchTheme"] }
-                                }
-
-                                button {
-                                    type' "button"
-                                    id "accentMenuButton"
-                                    class' "settings-menu-item"
-                                    onclick (fun _ -> setAccentMenuOpen true)
-
-                                    FluentIcon'' {
-                                        Value(Icons.Filled.Size20.RectangleLandscape())
-                                        style' $"color:{accentColor};"
-                                    }
-
-                                    span {
-                                        style' "flex:1;"
-                                        localizer["AccentColor"]
-                                    }
-
-                                    FluentIcon'' { Value(Icons.Regular.Size20.ChevronRight()) }
-                                }
-
-                                button {
-                                    type' "button"
-                                    id "languageMenuButton"
-                                    class' "settings-menu-item"
-                                    onclick (fun _ -> setLanguageMenuOpen true)
-
-                                    FluentIcon'' {
-                                        Value(Icons.Regular.Size20.LocalLanguage())
-                                    }
-
-                                    span {
-                                        style' "flex:1;"
-                                        localizer["Language"]
-                                    }
-
-                                    FluentIcon'' { Value(Icons.Regular.Size20.ChevronRight()) }
-                                }
-
-                                button {
-                                    type' "button"
-                                    class' "settings-menu-item"
-                                    onclick (fun _ -> los.OpenUrl "https://github.com/poimenov/RadioBrowser")
-
-                                    FluentIcon'' {
-                                        Value(Github())
-                                    }
-
-                                    span { localizer["GitHub"] }
-                                }
+                                languageItems
+                                githubItem
+                            }
                         }
                     }
                 }

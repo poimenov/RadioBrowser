@@ -44,7 +44,37 @@ function getRadioBrowserAccentColor() {
     return readRadioBrowserSetting("radioBrowserAccentColor", "#036ac4");
 }
 
+function positionSettingsSubmenus() {
+    const menu = document.querySelector(".settings-menu-list");
+    if (!menu) {
+        return;
+    }
+
+    const menuRect = menu.getBoundingClientRect();
+
+    for (const submenu of menu.querySelectorAll("fluent-menu-item > fluent-menu-list[popover]")) {
+        if (!submenu.matches(":popover-open")) {
+            continue;
+        }
+
+        const itemRect = submenu.parentElement.getBoundingClientRect();
+        const submenuRect = submenu.getBoundingClientRect();
+        const top = Math.max(0, Math.min(itemRect.top, window.innerHeight - submenuRect.height));
+
+        submenu.style.position = "fixed";
+        submenu.style.inset = "auto";
+        submenu.style.left = `${Math.max(0, menuRect.left - submenuRect.width)}px`;
+        submenu.style.right = "auto";
+        submenu.style.top = `${top}px`;
+        submenu.style.bottom = "auto";
+        submenu.style.translate = "0 0";
+    }
+}
+
 applyRadioBrowserTheme(getRadioBrowserTheme(), getRadioBrowserAccentColor());
+
+document.addEventListener("toggle", () => requestAnimationFrame(positionSettingsSubmenus), true);
+window.addEventListener("resize", () => requestAnimationFrame(positionSettingsSubmenus));
 
 window.setCallbacks = (elementId, dotNetRef) => {
     const observer = new IntersectionObserver((entries, observer) => {
