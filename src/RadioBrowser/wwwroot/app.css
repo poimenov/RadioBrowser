@@ -673,6 +673,20 @@ fluent-menu-item > fluent-menu {
   background-color: var(--colorNeutralBackground2);
 }
 
+.data-table-cell-station-name {
+    width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.data-table-cell-track-title {
+    width: calc(100dvw - 670px);
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis;
+}
+
 .fluent-dialog-body {
     overflow-y: hidden !important;
 }

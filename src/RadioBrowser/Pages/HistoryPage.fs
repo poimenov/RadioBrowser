@@ -91,6 +91,7 @@ let historyPage =
             store.HeaderIcon.Publish(Icons.Regular.Size24.History())
             store.SearchMode.Publish History
             let! history, setHistory = store.History.WithSetter()
+            let! _cultureName = store.CultureName
 
             if history.Length = 0 then
                 div {
@@ -111,12 +112,12 @@ let historyPage =
                         thead {
                             tr {
                                 th {
-                                    style' "width: 10%;"
+                                    style' "width: 166px;"
                                     gridHeader (Icons.Regular.Size20.Clock()) (string (services.Localizer["Time"]))
                                 }
 
                                 th {
-                                    style' "width: 10%;"
+                                    style' "width: 200px;"
 
                                     gridHeader
                                         (Icons.Regular.Size20.Location())
@@ -124,8 +125,6 @@ let historyPage =
                                 }
 
                                 th {
-                                    style' "width: 80%;"
-
                                     gridHeader
                                         (Icons.Regular.Size20.MusicNote1())
                                         (string (services.Localizer["Title"]))
@@ -136,14 +135,23 @@ let historyPage =
                         tbody {
                             for item in items do
                                 tr {
-                                    td { item.StartTime.ToString("g", CultureInfo.CurrentCulture) }
-                                    td { item.StationName }
+                                    td { item.StartTime.ToString("g", CultureInfo.GetCultureInfo _cultureName) }
+
+                                    td {
+                                        div {
+                                            class' "data-table-cell-station-name"
+                                            title' item.StationName
+
+                                            item.StationName
+                                        }
+                                    }
 
                                     td {
                                         let searchtext = string (services.Localizer["SearchOnYouTube"])
 
-                                        span {
-                                            class' "link"
+                                        div {
+                                            class' "link data-table-cell-track-title"
+
                                             title' $"{searchtext}: {item.Title}"
 
                                             onclick (fun _ ->
