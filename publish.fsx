@@ -1,9 +1,12 @@
 // Скрипт для сборки RadioBrowser
 // Использование: dotnet fsi publish.fsx
 
+#r "System.Formats.Tar"
+
 open System
 open System.IO
 open System.IO.Compression
+open System.Formats.Tar
 open System.Xml.Linq
 
 // ============ КОНФИГУРАЦИЯ ПРОЕКТА ============
@@ -229,6 +232,9 @@ let buildPluginsForRuntime (rid: string) (outputDir: string) =
 
 // ============ 5. ПУБЛИКАЦИЯ ============
 let publishProject (rid: string) (isSelfContained: bool) =
+    let isLinux = rid.StartsWith("linux-", StringComparison.Ordinal)
+    let archiveExtension = if isLinux then ".tar.gz" else ".zip"
+
     let scText =
         if isSelfContained then
             "self-contained"
@@ -239,9 +245,9 @@ let publishProject (rid: string) (isSelfContained: bool) =
 
     let archiveName =
         if isSelfContained then
-            $"{projectName}-self-contained-{rid}-{version}.zip"
+            $"{projectName}-self-contained-{rid}-{version}{archiveExtension}"
         else
-            $"{projectName}-{rid}-{version}.zip"
+            $"{projectName}-{rid}-{version}{archiveExtension}"
 
     let archivePath = Path.Combine(outputPath, archiveName)
 
@@ -295,7 +301,22 @@ let publishProject (rid: string) (isSelfContained: bool) =
 
             if Directory.Exists platformPublishDir then
                 try
-                    ZipFile.CreateFromDirectory(platformPublishDir, archivePath, CompressionLevel.Optimal, false)
+                    if isLinux then
+                        let tarPath = archivePath + ".tmp.tar"
+
+                        try
+                            TarFile.CreateFromDirectory(platformPublishDir, tarPath, false)
+
+                            use tarStream = File.OpenRead tarPath
+                            use archiveStream = File.Create archivePath
+                            use gzipStream = new GZipStream(archiveStream, CompressionLevel.Optimal)
+                            tarStream.CopyTo gzipStream
+                        finally
+                            if File.Exists tarPath then
+                                File.Delete tarPath
+                    else
+                        ZipFile.CreateFromDirectory(platformPublishDir, archivePath, CompressionLevel.Optimal, false)
+
                     let fileInfo = FileInfo(archivePath)
                     let sizeInMB = float fileInfo.Length / (1024.0 * 1024.0)
                     writeSuccess $"Архив создан: {archiveName} ({sizeInMB:F2} MB)"
@@ -342,7 +363,11 @@ let totalCount = results |> List.length
 if successCount = totalCount then
     writeSuccess "ВСЕ СБОРКИ УСПЕШНЫ"
 
-    let archives = Directory.GetFiles(outputPath, "*.zip") |> Array.sort
+    let archives =
+        Array.concat
+            [| Directory.GetFiles(outputPath, "*.zip")
+               Directory.GetFiles(outputPath, "*.tar.gz") |]
+        |> Array.sort
 
     if archives.Length > 0 then
         writeInfo "\nСозданные архивы:"
