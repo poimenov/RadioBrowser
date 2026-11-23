@@ -10,8 +10,6 @@
     <Compile Include="Fixtures\MockServices.fs" />
     <Compile Include="Unit\AppSettingsTests.fs" />
     <Compile Include="Unit\AppTests.fs" />
-    <Compile Include="Unit\Services\PlatformServiceTests.fs" />
-    <Compile Include="Unit\Services\ProcessServiceTests.fs" />
     <Compile Include="Unit\Services\LinkOpeningServiceTests.fs" />
     <Compile Include="Unit\Services\ApiUrlProviderTests.fs" />
     <Compile Include="Unit\Services\StationsServiceTests.fs" />

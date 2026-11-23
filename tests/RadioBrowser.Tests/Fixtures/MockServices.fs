@@ -22,23 +22,6 @@ module MockServices =
 
         mock
 
-    /// Creates a mock IPlatformService for testing
-    let createMockPlatformService
-        (returnPlatform: RadioBrowser.Interfaces.Platform)
-        : Mock<RadioBrowser.Interfaces.IPlatformService> =
-        let mock = Mock<RadioBrowser.Interfaces.IPlatformService>()
-        mock.Setup(fun m -> m.GetPlatform()).Returns(returnPlatform) |> ignore
-        mock
-
-    /// Creates a mock IProcessService for testing
-    let createMockProcessService () : Mock<RadioBrowser.Interfaces.IProcessService> =
-        let mock = Mock<RadioBrowser.Interfaces.IProcessService>()
-
-        mock.Setup(fun m -> m.Run(It.IsAny<string>(), It.IsAny<string>())).Callback<string, string>(fun cmd args -> ())
-        |> ignore
-
-        mock
-
     /// Creates a mock ILinkOpeningService for testing
     let createMockLinkOpeningService () : Mock<RadioBrowser.Interfaces.ILinkOpeningService> =
         let mock = Mock<RadioBrowser.Interfaces.ILinkOpeningService>()

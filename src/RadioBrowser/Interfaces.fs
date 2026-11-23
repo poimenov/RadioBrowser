@@ -10,18 +10,6 @@ open Microsoft.JSInterop
 open FSharp.Data
 open RadioBrowser.PluginContract
 
-type Platform =
-    | Windows
-    | Linux
-    | MacOS
-    | Unknown
-
-type IPlatformService =
-    abstract member GetPlatform: unit -> Platform
-
-type IProcessService =
-    abstract member Run: command: string * arguments: string -> unit
-
 type ILinkOpeningService =
     abstract member OpenUrl: url: string -> unit
 

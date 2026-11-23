@@ -1,7 +1,6 @@
 namespace RadioBrowser.Tests.Unit.Services
 
 open Xunit
-open FsUnit.Xunit
 open Moq
 open Microsoft.Extensions.Logging
 open RadioBrowser
@@ -10,87 +9,44 @@ open RadioBrowser.Tests
 
 module LinkOpeningServiceTests =
 
+    let private assertWarningLogged (logger: Mock<ILogger<LinkOpeningService>>) =
+        let warningLogged =
+            logger.Invocations
+            |> Seq.exists (fun invocation ->
+                invocation.Method.Name = "Log"
+                && unbox<LogLevel> invocation.Arguments.[0] = LogLevel.Warning)
+
+        Assert.True warningLogged
+
     [<Fact>]
     let ``LinkOpeningService should implement ILinkOpeningService`` () =
-        let mockPlatformService =
-            MockServices.createMockPlatformService RadioBrowser.Interfaces.Platform.Windows
-
-        let mockProcessService = MockServices.createMockProcessService ()
         let mockLogger = TestFixtures.createMockLogger<LinkOpeningService> ()
+        let service = new LinkOpeningService(mockLogger)
 
-        let service =
-            new LinkOpeningService(mockPlatformService.Object, mockProcessService.Object, mockLogger)
-
-        service |> should be instanceOfType<RadioBrowser.Interfaces.ILinkOpeningService>
+        service |> Assert.IsAssignableFrom<RadioBrowser.Interfaces.ILinkOpeningService> |> ignore
 
     [<Theory>]
-    [<InlineData("https://www.example.com")>]
-    [<InlineData("http://localhost:8080")>]
-    [<InlineData("https://radio-browser.info")>]
-    let ``LinkOpeningService.OpenUrl should accept valid URLs`` (url: string) =
-        let mockPlatformService =
-            MockServices.createMockPlatformService RadioBrowser.Interfaces.Platform.Windows
-
-        let mockProcessService = MockServices.createMockProcessService ()
-        let mockLogger = TestFixtures.createMockLogger<LinkOpeningService> ()
-
+    [<InlineData("javascript:alert(1)")>]
+    [<InlineData("file:///etc/passwd")>]
+    [<InlineData("ftp://example.com/file")>]
+    let ``LinkOpeningService should reject unsupported URL schemes`` (url: string) =
+        let mockLogger = TestFixtures.createMockLoggerWithVerify<LinkOpeningService> ()
         let service: RadioBrowser.Interfaces.ILinkOpeningService =
-            new LinkOpeningService(mockPlatformService.Object, mockProcessService.Object, mockLogger)
+            new LinkOpeningService(mockLogger.Object)
 
-        (fun () -> service.OpenUrl url) |> should not' (throw typeof<System.Exception>)
+        service.OpenUrl url
 
-    [<Fact>]
-    let ``LinkOpeningService should call ProcessService for Windows`` () =
-        let mockPlatformService =
-            MockServices.createMockPlatformService RadioBrowser.Interfaces.Platform.Windows
+        assertWarningLogged mockLogger
 
-        let mockProcessService = MockServices.createMockProcessService ()
-        let mockLogger = TestFixtures.createMockLogger<LinkOpeningService> ()
-
+    [<Theory>]
+    [<InlineData("not a url")>]
+    [<InlineData(" https://example.com")>]
+    [<InlineData("https://user:password@example.com")>]
+    let ``LinkOpeningService should reject malformed or deceptive URLs`` (url: string) =
+        let mockLogger = TestFixtures.createMockLoggerWithVerify<LinkOpeningService> ()
         let service: RadioBrowser.Interfaces.ILinkOpeningService =
-            new LinkOpeningService(mockPlatformService.Object, mockProcessService.Object, mockLogger)
+            new LinkOpeningService(mockLogger.Object)
 
-        (fun () -> service.OpenUrl "https://www.example.com")
-        |> should not' (throw typeof<System.Exception>)
+        service.OpenUrl url
 
-    [<Fact>]
-    let ``LinkOpeningService should handle Linux platform`` () =
-        let mockPlatformService =
-            MockServices.createMockPlatformService RadioBrowser.Interfaces.Platform.Linux
-
-        let mockProcessService = MockServices.createMockProcessService ()
-        let mockLogger = TestFixtures.createMockLogger<LinkOpeningService> ()
-
-        let service: RadioBrowser.Interfaces.ILinkOpeningService =
-            new LinkOpeningService(mockPlatformService.Object, mockProcessService.Object, mockLogger)
-
-        (fun () -> service.OpenUrl "https://www.example.com")
-        |> should not' (throw typeof<System.Exception>)
-
-    [<Fact>]
-    let ``LinkOpeningService should handle MacOS platform`` () =
-        let mockPlatformService =
-            MockServices.createMockPlatformService RadioBrowser.Interfaces.Platform.MacOS
-
-        let mockProcessService = MockServices.createMockProcessService ()
-        let mockLogger = TestFixtures.createMockLogger<LinkOpeningService> ()
-
-        let service: RadioBrowser.Interfaces.ILinkOpeningService =
-            new LinkOpeningService(mockPlatformService.Object, mockProcessService.Object, mockLogger)
-
-        (fun () -> service.OpenUrl "https://www.example.com")
-        |> should not' (throw typeof<System.Exception>)
-
-    [<Fact>]
-    let ``LinkOpeningService should handle Unknown platform gracefully`` () =
-        let mockPlatformService =
-            MockServices.createMockPlatformService RadioBrowser.Interfaces.Platform.Unknown
-
-        let mockProcessService = MockServices.createMockProcessService ()
-        let mockLogger = TestFixtures.createMockLogger<LinkOpeningService> ()
-
-        let service: RadioBrowser.Interfaces.ILinkOpeningService =
-            new LinkOpeningService(mockPlatformService.Object, mockProcessService.Object, mockLogger)
-
-        (fun () -> service.OpenUrl "https://www.example.com")
-        |> should not' (throw typeof<System.Exception>)
+        assertWarningLogged mockLogger

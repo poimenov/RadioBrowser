@@ -55,9 +55,6 @@ let main args =
 
     builder.Services.AddSingleton<IConfiguration> configuration |> ignore
     builder.Services.Configure<AppSettings> configuration |> ignore
-    builder.Services.AddSingleton<IPlatformService, PlatformService>() |> ignore
-    builder.Services.AddSingleton<IProcessService, ProcessService>() |> ignore
-
     builder.Services.AddSingleton<ILinkOpeningService, LinkOpeningService>()
     |> ignore
 
