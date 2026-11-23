@@ -60,7 +60,6 @@ let player =
                                     class' "station-name"
                                     title' station.Name
                                     Appearance LinkAppearance.Default
-                                    Href "#"
                                     OnClick(fun _ -> services.LinkOpeningService.OpenUrl station.Homepage)
 
                                     station.Name

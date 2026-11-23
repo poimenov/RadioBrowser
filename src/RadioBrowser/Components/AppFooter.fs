@@ -11,7 +11,6 @@ let appFooter =
         footer {
             FluentLink'' {
                 Appearance LinkAppearance.Default
-                Href "#"
                 OnClick(fun _ -> services.LinkOpeningService.OpenUrl "https://slaveoftime.github.io/Fun.Blazor.Docs/")
 
                 "Fun.Blazor"
@@ -118,7 +117,6 @@ let appFooter =
 
             FluentLink'' {
                 Appearance LinkAppearance.Default
-                Href "#"
                 OnClick(fun _ -> services.LinkOpeningService.OpenUrl "https://www.tryphotino.io")
 
                 "Photino"
