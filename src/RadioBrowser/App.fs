@@ -205,39 +205,34 @@ let app =
                                         |> ignore
 
 
-                                        let showErrorMessage =
+                                        let showErrorMessage (errorStation: Station) =
                                             task {
-                                                match selectedStation with
-                                                | NotSelected -> ()
-                                                | Selected station ->
-                                                    if isPlaying then
-                                                        let options =
-                                                            let retVal = new ToastOptions()
-                                                            retVal.Intent <- ToastIntent.Error
-                                                            retVal.Width <- "450px"
+                                                let options =
+                                                    let retVal = new ToastOptions()
+                                                    retVal.Intent <- ToastIntent.Error
+                                                    retVal.Width <- "450px"
 
-                                                            retVal.Title <-
-                                                                string (services.Localizer["ErrorLoadingStation"])
+                                                    retVal.Title <- string (services.Localizer["ErrorLoadingStation"])
 
-                                                            retVal.Message <- $"{station.Name} ({station.UrlResolved})"
+                                                    retVal.Message <-
+                                                        $"{errorStation.Name} ({errorStation.UrlResolved})"
 
-                                                            retVal.QuickAction1.Label <-
-                                                                string (services.Localizer["ClickToCopyUrl"])
+                                                    retVal.QuickAction1.Label <-
+                                                        string (services.Localizer["ClickToCopyUrl"])
 
-                                                            retVal.QuickAction1.OnClickAsync <-
-                                                                fun _ ->
-                                                                    task {
-                                                                        do!
-                                                                            services.JsRuntime.InvokeVoidAsync(
-                                                                                "navigator.clipboard.writeText",
-                                                                                station.UrlResolved
-                                                                            )
-                                                                    }
+                                                    retVal.QuickAction1.OnClickAsync <-
+                                                        fun _ ->
+                                                            task {
+                                                                do!
+                                                                    services.JsRuntime.InvokeVoidAsync(
+                                                                        "navigator.clipboard.writeText",
+                                                                        errorStation.UrlResolved
+                                                                    )
+                                                            }
 
-                                                            retVal
+                                                    retVal
 
-                                                        services.NotificationService.ShowToastAsync options |> ignore
-                                                        store.IsPlaying.Publish false
+                                                services.NotificationService.ShowToastAsync options |> ignore
                                             }
 
                                         FluentStack'' {
@@ -286,8 +281,22 @@ let app =
                                                                 )
                                                         })
 
-                                                    onstalled (fun _ -> showErrorMessage |> ignore)
-                                                    onerror (fun _ -> showErrorMessage |> ignore)
+                                                    onstalled (fun _ ->
+                                                        match selectedStation with
+                                                        | NotSelected -> ()
+                                                        | Selected station ->
+                                                            if isPlaying then
+                                                                showErrorMessage station |> ignore
+                                                                store.IsPlaying.Publish false)
+
+                                                    onerror (fun _ ->
+                                                        match selectedStation with
+                                                        | NotSelected -> ()
+                                                        | Selected station ->
+                                                            if isPlaying then
+                                                                showErrorMessage station |> ignore
+                                                                store.IsPlaying.Publish false)
+
                                                     onended (fun _ -> store.IsPlaying.Publish false)
                                                     onpause (fun _ -> store.IsPlaying.Publish false)
                                                 }
