@@ -68,7 +68,8 @@ let private routeTable =
        routeCi "/history" historyPage
        routeAny homePage |]
 
-let private routes cultureName = html.route (routeTable, Some(box cultureName))
+let private routes cultureName =
+    html.route (routeTable, Some(box cultureName))
 
 let app =
     html.inject
@@ -80,21 +81,13 @@ let app =
              window: Photino.NET.PhotinoWindow) ->
             hook.AddInitializedTask(fun _ ->
                 task {
-                    let! theme =
-                        services.JsRuntime.InvokeAsync<string>("getRadioBrowserTheme").AsTask()
+                    let! theme = services.JsRuntime.InvokeAsync<string>("getRadioBrowserTheme").AsTask()
 
-                    let! accentColor =
-                        services.JsRuntime.InvokeAsync<string>("getRadioBrowserAccentColor").AsTask()
+                    let! accentColor = services.JsRuntime.InvokeAsync<string>("getRadioBrowserAccentColor").AsTask()
 
                     do! themeService.SetThemeAsync(accentColor, true)
 
-                    do!
-                        themeService.SetThemeAsync(
-                            if theme = "dark" then
-                                ThemeMode.Dark
-                            else
-                                ThemeMode.Light
-                        )
+                    do! themeService.SetThemeAsync(if theme = "dark" then ThemeMode.Dark else ThemeMode.Light)
 
                     store.Theme.Publish(if theme = "dark" then Dark else Light)
                     store.AccentColor.Publish accentColor
@@ -211,12 +204,41 @@ let app =
                                         }
                                         |> ignore
 
-                                        let getErrorMessage =
-                                            match selectedStation with
-                                            | NotSelected -> ""
-                                            | Selected station ->
-                                                let msg = string (services.Localizer["ErrorLoadingStation"])
-                                                $"{msg}: {station.Name} ({station.UrlResolved})"
+
+                                        let showErrorMessage =
+                                            task {
+                                                match selectedStation with
+                                                | NotSelected -> ()
+                                                | Selected station ->
+                                                    if isPlaying then
+                                                        let options =
+                                                            let retVal = new ToastOptions()
+                                                            retVal.Intent <- ToastIntent.Error
+                                                            retVal.Width <- "450px"
+
+                                                            retVal.Title <-
+                                                                string (services.Localizer["ErrorLoadingStation"])
+
+                                                            retVal.Message <- $"{station.Name} ({station.UrlResolved})"
+
+                                                            retVal.QuickAction1.Label <-
+                                                                string (services.Localizer["ClickToCopyUrl"])
+
+                                                            retVal.QuickAction1.OnClickAsync <-
+                                                                fun _ ->
+                                                                    task {
+                                                                        do!
+                                                                            services.JsRuntime.InvokeVoidAsync(
+                                                                                "navigator.clipboard.writeText",
+                                                                                station.UrlResolved
+                                                                            )
+                                                                    }
+
+                                                            retVal
+
+                                                        services.NotificationService.ShowToastAsync options |> ignore
+                                                        store.IsPlaying.Publish false
+                                            }
 
                                         FluentStack'' {
                                             Orientation Orientation.Horizontal
@@ -257,23 +279,15 @@ let app =
 
                                                     onplay (fun _ ->
                                                         task {
-                                                            do! services.JsRuntime.InvokeVoidAsync("setVolume", store.Volume.Value)
+                                                            do!
+                                                                services.JsRuntime.InvokeVoidAsync(
+                                                                    "setVolume",
+                                                                    store.Volume.Value
+                                                                )
                                                         })
 
-                                                    onstalled (fun _ ->
-                                                        task {
-                                                            services.NotificationService.ShowErrorToastAsync getErrorMessage
-                                                            |> ignore
-                                                            store.IsPlaying.Publish false
-                                                        })
-
-                                                    onerror (fun _ ->
-                                                        task {
-                                                            services.NotificationService.ShowErrorToastAsync getErrorMessage
-                                                            |> ignore
-                                                            store.IsPlaying.Publish false
-                                                        })
-
+                                                    onstalled (fun _ -> showErrorMessage |> ignore)
+                                                    onerror (fun _ -> showErrorMessage |> ignore)
                                                     onended (fun _ -> store.IsPlaying.Publish false)
                                                     onpause (fun _ -> store.IsPlaying.Publish false)
                                                 }

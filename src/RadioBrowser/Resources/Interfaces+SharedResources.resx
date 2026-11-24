@@ -87,6 +87,9 @@
     <data name="ErrorLoadingStation" xml:space="preserve">
         <value>Error loading station</value>
     </data>
+    <data name="ClickToCopyUrl" xml:space="preserve">
+        <value>Click to copy the URL to clipboard</value>
+    </data>    
     <data name="NowPlaying" xml:space="preserve">
         <value>Now playing</value>
     </data>  
