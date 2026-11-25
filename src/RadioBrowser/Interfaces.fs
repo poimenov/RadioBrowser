@@ -4,6 +4,7 @@ module RadioBrowser.Interfaces
 open System
 open System.Collections.Generic
 open System.Threading.Tasks
+open System.Diagnostics
 open Microsoft.FluentUI.AspNetCore.Components
 open Microsoft.Extensions.Localization
 open Microsoft.JSInterop
@@ -12,6 +13,9 @@ open RadioBrowser.PluginContract
 
 type ILinkOpeningService =
     abstract member OpenUrl: url: string -> unit
+
+type IProcessLauncher =
+    abstract member Start : ProcessStartInfo -> unit
 
 type IApiUrlProvider =
     abstract member GetUrl: unit -> string

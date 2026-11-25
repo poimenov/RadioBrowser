@@ -22,6 +22,13 @@ module MockServices =
 
         mock
 
+    /// Creates a mock IProcessLauncher for testing
+    let createMockProcessLauncher () : Mock<RadioBrowser.Interfaces.IProcessLauncher> =
+        let mock = Mock<RadioBrowser.Interfaces.IProcessLauncher>()
+        mock.Setup(fun m -> m.Start(It.IsAny<System.Diagnostics.ProcessStartInfo>())).Callback(fun _ -> ())
+        |> ignore
+        mock
+
     /// Creates a mock ILinkOpeningService for testing
     let createMockLinkOpeningService () : Mock<RadioBrowser.Interfaces.ILinkOpeningService> =
         let mock = Mock<RadioBrowser.Interfaces.ILinkOpeningService>()

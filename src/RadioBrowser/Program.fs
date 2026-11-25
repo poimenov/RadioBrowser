@@ -33,8 +33,7 @@ let main args =
 
     builder.Services.AddFunBlazorWasm() |> ignore
 
-    builder.Services.AddFluentUIComponents(fun options ->
-        options.Toast.Position <- ToastPosition.TopStart)
+    builder.Services.AddFluentUIComponents(fun options -> options.Toast.Position <- ToastPosition.TopStart)
     |> ignore
 
     builder.Services.AddLogging(fun logging ->
@@ -55,6 +54,10 @@ let main args =
 
     builder.Services.AddSingleton<IConfiguration> configuration |> ignore
     builder.Services.Configure<AppSettings> configuration |> ignore
+
+    builder.Services.AddSingleton<IProcessLauncher, ProcessLauncherService>()
+    |> ignore
+
     builder.Services.AddSingleton<ILinkOpeningService, LinkOpeningService>()
     |> ignore
 
@@ -81,11 +84,11 @@ let main args =
     // builder.Services.AddSingleton<IPluginService, PluginService>(fun sp ->
     //     let factory = sp.GetRequiredService<IHttpClientFactory>()
     //     PluginService(factory) :> IPluginService
-    // ) |> ignore 
-    
+    // ) |> ignore
+
     // builder.Services.AddSingleton<ISongDownloaderPlugin>(fun sp ->
     //     let pluginService = sp.GetRequiredService<IPluginService>()
-    //     pluginService.GetPluginByName("YouTube Music")) |> ignore    
+    //     pluginService.GetPluginByName("YouTube Music")) |> ignore
 
     let application = builder.Build()
     AppDomain.CurrentDomain.SetData("DataDirectory", AppSettings.AppDataPath)
