@@ -19,22 +19,34 @@ function writeRadioBrowserSetting(key, value) {
 
 function applyRadioBrowserTheme(theme, accentColor) {
     const root = document.documentElement;
-    const normalizedTheme = theme === "dark" ? "dark" : "light";
+    const isDark = theme === "dark";
+    const normalizedTheme = isDark ? "dark" : "light";
     const normalizedAccent = /^#[0-9a-f]{6}$/i.test(accentColor) ? accentColor : "#036ac4";
+
+    const foregroundAccent = isDark
+        ? `color-mix(in srgb, ${normalizedAccent} 65%, white)`
+        : normalizedAccent;
+
+    const foregroundHover = isDark
+        ? `color-mix(in srgb, ${normalizedAccent} 50%, white)`
+        : `color-mix(in srgb, ${normalizedAccent} 80%, black)`;
 
     root.dataset.theme = normalizedTheme;
     root.style.colorScheme = normalizedTheme;
+
     root.style.setProperty("--radio-accent", normalizedAccent);
     root.style.setProperty("--colorBrandBackground", normalizedAccent);
     root.style.setProperty("--colorBrandBackgroundHover", `color-mix(in srgb, ${normalizedAccent} 90%, black)`);
     root.style.setProperty("--colorBrandBackgroundPressed", `color-mix(in srgb, ${normalizedAccent} 80%, black)`);
-    root.style.setProperty("--colorBrandForeground1", normalizedAccent);
-    root.style.setProperty("--colorBrandForegroundLink", normalizedAccent);
-    root.style.setProperty("--colorBrandForegroundLinkHover", `color-mix(in srgb, ${normalizedAccent} 80%, black)`);
+
+    root.style.setProperty("--colorBrandForeground1", foregroundAccent);
+    root.style.setProperty("--colorBrandForegroundLink", foregroundAccent);
+    root.style.setProperty("--colorBrandForegroundLinkHover", foregroundHover);
 
     writeRadioBrowserSetting("radioBrowserTheme", normalizedTheme);
     writeRadioBrowserSetting("radioBrowserAccentColor", normalizedAccent);
 }
+
 
 function getRadioBrowserTheme() {
     return readRadioBrowserSetting("radioBrowserTheme", "light");

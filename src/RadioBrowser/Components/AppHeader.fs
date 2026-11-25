@@ -45,11 +45,23 @@ let appHeader =
                         let! accentColor = store.AccentColor
                         let! cultureName = store.CultureName
 
+                        // let colors =
+                        //     [ "Blue", "#036ac4"
+                        //       "Teal", "#008272"
+                        //       "Purple", "#8764b8"
+                        //       "Green", "#107c10"
+                        //       "Orange", "#ca5010"
+                        //       "Red", "#d13438" ]
+
                         let colors =
                             [ "Blue", "#036ac4"
+                              "Indigo", "#4f6bed"
                               "Teal", "#008272"
+                              "Cyan", "#038387"
                               "Purple", "#8764b8"
+                              "Pink", "#c239b3"
                               "Green", "#107c10"
+                              "Gold", "#986f0b"
                               "Orange", "#ca5010"
                               "Red", "#d13438" ]
 
