@@ -9,9 +9,8 @@ open System.Text.RegularExpressions
 open Microsoft.Extensions.Logging
 open Microsoft.Extensions.Options
 
-type MetadataService
-    (httpClientFactory: IHttpClientFactory, options: IOptions<AppSettings>, logger: ILogger<MetadataService>) =
-    let extractStreamTitle (text: string) =
+type MetadataParser() =
+    static member ExtractStreamTitle(text: string) =
         let m = Regex.Match(text, "StreamTitle='([^']*)'")
 
         let trimLastDelimeter (s: string) =
@@ -67,6 +66,10 @@ type MetadataService
                     Ok None
                 else
                     Ok(Some title)
+
+type MetadataService
+    (httpClientFactory: IHttpClientFactory, options: IOptions<AppSettings>, logger: ILogger<MetadataService>) =
+    let extractStreamTitle = MetadataParser.ExtractStreamTitle
 
     interface IMetadataService with
         member _.GetTitleAsync(url: string) =

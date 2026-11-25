@@ -13,6 +13,7 @@
     <Compile Include="Unit\Services\LinkOpeningServiceTests.fs" />
     <Compile Include="Unit\Services\ApiUrlProviderTests.fs" />
     <Compile Include="Unit\Services\StationsServiceTests.fs" />
+    <Compile Include="Unit\Services\MetadataServiceTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
